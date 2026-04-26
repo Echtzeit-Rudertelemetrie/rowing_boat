@@ -32,8 +32,6 @@ For a solo blink sketch, Arduino IDE is fine. For a team project with parallel c
 
 ### 2. Serial Plotter - Teleplot
 
-The built-in Arduino Serial Plotter doesn't save history. Use **Teleplot** instead.
-
 1. Extensions -> search **Teleplot**, install.
 2. Format your output like this: `>VariableName: 85.2`
 3. Click the Teleplot icon to get zoomable, high-speed, saveable graphs.
