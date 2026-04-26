@@ -32,20 +32,24 @@ For a solo blink sketch, Arduino IDE is fine. For a team project with parallel c
 
 ### 2. Serial Plotter - Teleplot
 
-The built-in Arduino Serial Plotter doesn't save history. Use **Teleplot** instead.
+- [https://github.com/nesnes/teleplot]
 
 1. Extensions -> search **Teleplot**, install.
-2. Format your output like this: `>VariableName: 85.2`
+2. Format your output like this: `>VariableName: 85.2` (Check out teleplot repo)
 3. Click the Teleplot icon to get zoomable, high-speed, saveable graphs.
 
 ## Compile & Upload
 
-Don't use the normal Arduino upload button. Use **PlatformIO Project Tasks** (the Ant Head icon in the left sidebar).
+Use **PlatformIO Project Tasks** (the Ant Head icon in the left sidebar).
+
+Documentation: [https://docs.platformio.org/en/latest/what-is-platformio.html]
+> Check also the READMEs in the subfolders (Short descriptions from PlatformIO)
 
 Available environments:
 
 - `prod_nodemcu-32s` -> builds `src/main.cpp`
 - `test_dms` -> builds the DMS test file only
 - `test_gyro` -> builds the Gyro test file only
+- create more tests environments in `test/test_file.cpp` and log in `platformio.ini`
 
-Open your environment, click **General**, then **Upload and Monitor**.
+Open your environment, click **General**, then **Upload and Monitor**. (ctrl B (build) and then ctrl U (upload))
