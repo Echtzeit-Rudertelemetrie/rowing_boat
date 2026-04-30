@@ -1,0 +1,94 @@
+{
+   "widgets": [
+      {
+         "type": "chart",
+         "gridPos": {
+            "h": 12,
+            "w": 12,
+            "x": 0,
+            "y": 0
+         },
+         "series": [
+            {
+               "name": "imu/Winkel_x",
+               "sourceNames": [
+                  "imu/Winkel_x"
+               ],
+               "formula": "",
+               "options": {
+                  "_serie": "imu/Winkel_x",
+                  "_id": "data-serie-1",
+                  "stroke": "rgba(231,76,60,1)",
+                  "fill": "rgba(231,76,60,0.1)"
+               },
+               "type": "number"
+            },
+            {
+               "name": "stroke/Servo_deg",
+               "sourceNames": [
+                  "stroke/Servo_deg"
+               ],
+               "formula": "",
+               "options": {
+                  "_serie": "stroke/Servo_deg",
+                  "_id": "data-serie-6",
+                  "stroke": "rgba(52,152,219,1)",
+                  "fill": "rgba(52,152,219,0.1)"
+               },
+               "type": "number"
+            }
+         ]
+      },
+      {
+         "type": "chart",
+         "gridPos": {
+            "h": 6,
+            "w": 6,
+            "x": 0,
+            "y": 0
+         },
+         "series": [
+            {
+               "name": "imu/Acce_z",
+               "sourceNames": [
+                  "imu/Acce_z"
+               ],
+               "formula": "",
+               "options": {
+                  "_serie": "imu/Acce_z",
+                  "_id": "data-serie-4",
+                  "stroke": "rgba(231,76,60,1)",
+                  "fill": "rgba(231,76,60,0.1)"
+               },
+               "type": "number"
+            }
+         ]
+      },
+      {
+         "type": "chart",
+         "gridPos": {
+            "h": 6,
+            "w": 6,
+            "x": 0,
+            "y": 0
+         },
+         "series": [
+            {
+               "name": "imu/Gyro_x",
+               "sourceNames": [
+                  "imu/Gyro_x"
+               ],
+               "formula": "",
+               "options": {
+                  "_serie": "imu/Gyro_x",
+                  "_id": "data-serie-9",
+                  "stroke": "rgba(231,76,60,1)",
+                  "fill": "rgba(231,76,60,0.1)"
+               },
+               "type": "number"
+            }
+         ]
+      }
+   ],
+   "viewDuration": "300"
+}

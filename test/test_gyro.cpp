@@ -1,6 +1,8 @@
 #include <Arduino.h>
 #include <ESP32Servo.h>
 #include "gyro.h"
+#include "../lib/logging.hpp"
+#include <LittleFS.h>
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Board-Specific Configuration
@@ -51,6 +53,7 @@ void drivePhase() {
 
 void setup() {
     Serial.begin(115200);
+   // LittleFS.begin();
 
     ESP32PWM::allocateTimer(0);
     ESP32PWM::allocateTimer(1);
