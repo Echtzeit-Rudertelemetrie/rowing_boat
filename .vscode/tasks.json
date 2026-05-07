@@ -1,0 +1,121 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "1) Flash Idle → USB1",
+            "type": "shell",
+            "command": "/home/eron/.platformio/penv/bin/platformio run -e test_idle -t upload --upload-port /dev/ttyUSB1",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "never"
+            }
+        },
+        {
+            "label": "2) Flash Idle → USB2",
+            "type": "shell",
+            "command": "/home/eron/.platformio/penv/bin/platformio run -e test_idle -t upload --upload-port /dev/ttyUSB2",
+            "dependsOn": ["1) Flash Idle → USB1"],
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "never"
+            }
+        },
+        {
+            "label": "3) Flash Receiver → USB0",
+            "type": "shell",
+            "command": "/home/eron/.platformio/penv/bin/platformio run -e test_receiver -t upload --upload-port /dev/ttyUSB0",
+            "dependsOn": ["2) Flash Idle → USB2"],
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "never"
+            }
+        },
+        {
+            "label": "4) Flash Sender1 → USB1",
+            "type": "shell",
+            "command": "/home/eron/.platformio/penv/bin/platformio run -e test_sender -t upload --upload-port /dev/ttyUSB1",
+            "dependsOn": ["3) Flash Receiver → USB0"],
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "never"
+            }
+        },
+        {
+            "label": "5) Flash Sender2 → USB2",
+            "type": "shell",
+            "command": "/home/eron/.platformio/penv/bin/platformio run -e test_sender -t upload --upload-port /dev/ttyUSB2",
+            "dependsOn": ["4) Flash Sender1 → USB1"],
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "never"
+            }
+        },
+        {
+            "label": "M) Monitor Receiver → USB0",
+            "type": "shell",
+            "command": "/home/eron/.platformio/penv/bin/platformio device monitor --port /dev/ttyUSB0",
+            "problemMatcher": [],
+            "isBackground": true,
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": false,
+                "close": false
+            }
+        },
+        {
+            "label": "M) Monitor Sender1 → USB1",
+            "type": "shell",
+            "command": "/home/eron/.platformio/penv/bin/platformio device monitor --port /dev/ttyUSB1",
+            "problemMatcher": [],
+            "isBackground": true,
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": false,
+                "close": false
+            }
+        },
+        {
+            "label": "M) Monitor Sender2 → USB2",
+            "type": "shell",
+            "command": "/home/eron/.platformio/penv/bin/platformio device monitor --port /dev/ttyUSB2",
+            "problemMatcher": [],
+            "isBackground": true,
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": false,
+                "close": false
+            }
+        },
+        {
+            "label": "Start Monitors (after flashing)",
+            "dependsOn": [
+                "M) Monitor Receiver → USB0",
+                "M) Monitor Sender1 → USB1",
+                "M) Monitor Sender2 → USB2"
+            ],
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always"
+            }
+        },
+        {
+            "label": "ESP-NOW: Full Test (1→2→3→4→5→Monitors)",
+            "dependsOrder": "sequential",
+            "dependsOn": [
+                "1) Flash Idle → USB1",
+                "2) Flash Idle → USB2",
+                "3) Flash Receiver → USB0",
+                "4) Flash Sender1 → USB1",
+                "5) Flash Sender2 → USB2",
+                "Start Monitors (after flashing)"
+            ],
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always"
+            }
+        }
+    ]
+}
