@@ -7,6 +7,7 @@ Adafruit_MPU6050 mpu;
 float gyroOffsetX = 0, gyroOffsetY = 0, gyroOffsetZ = 0;
 const unsigned long SAMPLE_INTERVAL_MS = 10;
 
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Function Implementations
 // ─────────────────────────────────────────────────────────────────────────────
