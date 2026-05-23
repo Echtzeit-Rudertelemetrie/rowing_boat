@@ -1,60 +1,11 @@
-#include <Wire.h>
 #include <Arduino.h>
+#include <Wire.h>
 #include <WiFi.h>
 #include "esp_bt.h"
-
-#define AS5600_ADDR        0x36
-#define REG_ANGLE_H        0x0E
-#define AGC_REG            0x1A
-#define MAG_REG            0x1B
-#define SAMPLE_INTERVAL_US 10000  // 100 Hz
+#include "hall_angle.h"
 
 // ─────────────────────────────────────────────────────────────
-uint32_t lastSample = 0;
-float    offset     = 0.0f;
-bool     calcMode   = false;
-float    lastAngle  = 0.0f;
-
-// ─────────────────────────────────────────────────────────────
-float readRawAngle() {
-    Wire.beginTransmission(AS5600_ADDR);
-    Wire.write(REG_ANGLE_H);
-    Wire.endTransmission(false);
-    Wire.requestFrom(AS5600_ADDR, 2);
-
-    if (Wire.available() == 2) {
-        uint16_t raw = (Wire.read() << 8) | Wire.read();
-        raw &= 0x0FFF;
-        return raw * 360.0f / 4096.0f;
-    }
-    return -1.0f;
-}
-
-// ─────────────────────────────────────────────────────────────
-float wrapAngle(float a) {
-    while (a <    0.0f) a += 360.0f;
-    while (a >= 360.0f) a -= 360.0f;
-    return a;
-}
-
-// ─────────────────────────────────────────────────────────────
-uint8_t readAGC() {
-    Wire.beginTransmission(AS5600_ADDR);
-    Wire.write(AGC_REG);
-    Wire.endTransmission(false);
-    Wire.requestFrom(AS5600_ADDR, 1);
-    return Wire.available() ? Wire.read() : 0;
-}
-
-// ─────────────────────────────────────────────────────────────
-uint16_t readMagnitude() {
-    Wire.beginTransmission(AS5600_ADDR);
-    Wire.write(MAG_REG);
-    Wire.endTransmission(false);
-    Wire.requestFrom(AS5600_ADDR, 2);
-    uint16_t magnitude = (Wire.read() << 8) | Wire.read();
-    return magnitude & 0x0FFF;
-}
+static HallAngle sensor;
 
 // ─────────────────────────────────────────────────────────────
 void setup() {
@@ -64,51 +15,23 @@ void setup() {
     WiFi.mode(WIFI_OFF);
     btStop();
     esp_bt_controller_deinit();
-    Serial.println("Wi-Fi and Bluetooth are now disabled.");
+    Serial.println("Wi-Fi and Bluetooth disabled.");
 
     Wire.begin();
     Wire.setClock(400000);
     delay(100);
 
-    float raw = readRawAngle();
-    if (raw < 0.0f) {
-        Serial.println("AS5600 not detected!");
-    }
-    offset = raw;
+    sensor.begin();
 }
 
 // ─────────────────────────────────────────────────────────────
 void loop() {
-    uint32_t now = micros();
-    if (now - lastSample >= SAMPLE_INTERVAL_US) {
-        lastSample = now;
+    if (!sensor.update()) return;
 
-        float raw = readRawAngle();
-        if (raw < 0.0f) return;
-
-        raw = wrapAngle(raw - offset);
-
-        // Kleinste Winkeldifferenz berechnen (-180 .. +180)
-        float diff = raw - lastAngle;
-        if (diff >  180.0f) diff -= 360.0f;
-        if (diff < -180.0f) diff += 360.0f;
-
-        if (abs(diff) >= 10.0f) {
-            calcMode = !calcMode;
-            Serial.println("Switching Calc Mode");
-        }
-
-        lastAngle = raw;
-
-        float angle_with_calc = calcMode ? (360.0f - raw) : raw;
-
-        // ── Teleplot output ───────────────────────────────────
-        Serial.printf(">as5600/angle_raw: %.2f\n",       raw);
-        Serial.printf(">as5600/angle_with_calc: %.2f\n", angle_with_calc);
-        Serial.printf(">as5600/magnitude: %d\n",         readMagnitude());
-        Serial.printf(">as5600/agc: %d\n",               readAGC());
-    }
-    delay(5);
+    Serial.printf(">as5600/angle_raw: %.2f\n",       sensor.getAngleRaw());
+    Serial.printf(">as5600/angle_with_calc: %.2f\n", sensor.getAngleCalc());
+    Serial.printf(">as5600/magnitude: %d\n",         sensor.getMagnitude());
+    Serial.printf(">as5600/agc: %d\n",               sensor.getAGC());
 }
 
 /*#include <Wire.h>
