@@ -223,7 +223,7 @@ public:
     EKF(bool useMag = false, float freq = 100.0f)
         : hasMag(useMag), frequency(freq), Dt(1.0f / freq)
     {
-        if (hasMag)
+        if (!hasMag)
         {
             throw ValueError("BLA EKF version is accelerometer-only. Construct with EKF(false, freq).");
         }
