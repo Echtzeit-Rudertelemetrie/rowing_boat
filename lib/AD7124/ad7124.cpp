@@ -25,7 +25,7 @@
 
 #define CONFIG_BIPOLAR   0x10
 #define CONFIG_REF_SEL   0x02
-#define CONFIG_PGA(x)    (((x) & 0x07) << 8)
+#define CONFIG_PGA(x)    (((x) & 0x07) << 1)
 
 #define FILTER_FS(x)     ((x) & 0x7FF)
 #define FILTER_FILT(x)   (((x) & 0x07) << 3)
