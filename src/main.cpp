@@ -19,7 +19,7 @@ SPIClass *spi = new SPIClass(VSPI);
 #define CMD_READ 0x40
 #define CMD_WRITE 0x00
 
-const float VREF = 2.5f;
+const float VREF = 3.3f;
 const float PGA = 128.0f;
 const float FS = 8388608.0f;
 const uint16_t AVG_SIZE = 16;
@@ -73,7 +73,7 @@ void ad7124_init() {
 
   writeReg(REG_ADC_CTRL, 0x0180, 2);
 
-  uint16_t cfg0 = 0x0E38;
+  uint16_t cfg0 = 0x087F;
   writeReg(REG_CONFIG0, cfg0, 2);
 
   writeReg(REG_FILTER0, 0x060180, 3);
@@ -117,8 +117,7 @@ void loop() {
   }
 
   uint32_t data = readReg(REG_DATA, 3);
-  int32_t raw = (int32_t)data;
-  if (raw & 0x800000) raw |= 0xFF000000;
+  int32_t raw = (int32_t)data - 0x800000;
 
   float uV = (raw * VREF * 1e6) / (PGA * FS);
   float uV_avg = movingAvg(uV);

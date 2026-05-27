@@ -33,7 +33,7 @@
 
 #define CH_EN            0x80
 
-static const float V_REF_uV = 2500000.0f;
+static const float V_REF_uV = 3300000.0f;
 static const float PGA = 128.0f;
 static const float BITS = 8388608.0f;
 
@@ -255,7 +255,7 @@ void ad7124_update() {
     sw_read_reg(REG_DATA, data, 3);
 
     int32_t raw = ((int32_t)data[2] << 16) | ((int32_t)data[1] << 8) | ((int32_t)data[0]);
-    if (raw & 0x800000) raw |= 0xFF000000;
+    raw = raw - 0x800000;
 
     float uV = (float)raw * (V_REF_uV / (PGA * BITS));
     float avg = moving_avg(uV);
