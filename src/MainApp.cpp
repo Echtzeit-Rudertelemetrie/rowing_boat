@@ -1,5 +1,4 @@
 #include "MainApp.h"
-#include "Eval_loop.h"
 
 MainApp::MainApp()
 : latest_{}
@@ -74,12 +73,7 @@ void MainApp::run() {
 void MainApp::handleEvent(EventType event) {
     switch (event) {
         case EventType::ReadSensor1: {
-            unsigned long ms = millis();
-
-            Serial.printf("Uptime: %lu\n", ms);
-
             latest_.sensor1 = sensor_.ReadSensor1();
-            eval_loop();
             break;
         }
 
@@ -90,11 +84,6 @@ void MainApp::handleEvent(EventType event) {
 
         case EventType::SendData: {
             sender_.sendData();
-
-            unsigned long ms = millis();
-
-            Serial.printf("Uptime: %lu\n", ms);
-
             break;
         }
 
