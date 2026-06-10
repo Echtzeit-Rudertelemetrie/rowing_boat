@@ -132,6 +132,10 @@ void loop() {
   static uint32_t last = 0;
   if (millis() - last >= 100) {
     last = millis();
-    Serial.printf("%lu,%ld,%.2f,%.2f\n", last, raw, uV_avg, kraft);
+    //Serial.printf("%lu,%ld,%.2f,%.2f\n", last, raw, uV_avg, kraft);
+    Serial.printf(">last:%lu\n", last);
+    Serial.printf(">raw:%ld\n", raw);
+    Serial.printf(">uV_avg:%.2f\n", uV_avg);
+    Serial.printf(">kraft:%.2f\n", kraft);
   }
 }
