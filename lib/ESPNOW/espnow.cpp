@@ -42,7 +42,7 @@ void onDataRecv(const uint8_t* /*mac*/, const uint8_t* data, int len) {
 }
 
 uint8_t* espnow_get_local_mac() {
-    static uint8_t mac[6];
+    static uint8_t mac[6]; //-> durch static bleibt adresse auch im nachhinein noch gültig (nachem function fertig)
     WiFi.macAddress(mac);
     return mac;
 }
@@ -56,39 +56,40 @@ bool espnow_is_peer_added() {
 }
 
 void espnow_init_receiver() {
-    WiFi.mode(WIFI_STA);
-    WiFi.disconnect();
-    esp_wifi_set_channel(ESPNOW_CHANNEL, WIFI_SECOND_CHAN_NONE);
-    esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B);
-    esp_wifi_set_max_tx_power(78);
+    WiFi.mode(WIFI_STA); //-> Stationary Funkteilnehmer und nicht access point
+    WiFi.disconnect(); //Kein Wlan an
+    esp_wifi_set_channel(ESPNOW_CHANNEL, WIFI_SECOND_CHAN_NONE); //Channel auf channel 11 setzen
+    esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B); //Verbindungsprotokoll setzen (nicht ändern)
+    esp_wifi_set_max_tx_power(78); //Setzt die maximale Sendeleistung (evtl. verändern zum optimieren)
 
-    if (esp_now_init() != ESP_OK) {
+    if (esp_now_init() != ESP_OK) { //initialisiert den ESP-Stack
         ESP.restart();
     }
-    esp_now_register_recv_cb(onDataRecv);
+    esp_now_register_recv_cb(onDataRecv); //-> Wenn ESP Now Paket reinkommt, soll die Funktion onDataRecv aufgerufen werden
 }
 
 void espnow_init_sender(uint8_t board_id, const uint8_t* peer_mac) {
     s_board_id_sender = board_id;
-    WiFi.mode(WIFI_STA);
-    WiFi.disconnect();
+    WiFi.mode(WIFI_STA); //-> Stationary Funkteilnehmer und nicht access point
+    WiFi.disconnect(); //Kein Wlan an
 
-    esp_wifi_set_max_tx_power(78);
-    esp_wifi_set_channel(ESPNOW_CHANNEL, WIFI_SECOND_CHAN_NONE);
-    esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B);
+    esp_wifi_set_max_tx_power(78); //Setzt die maximale Sendeleistung 
+    esp_wifi_set_channel(ESPNOW_CHANNEL, WIFI_SECOND_CHAN_NONE); //Channel auf channel 11 setzen
+    esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B); //Verbindungsprotokoll setzen (nicht ändern)
 
-    if (esp_now_init() != ESP_OK) {
+    if (esp_now_init() != ESP_OK) { //initialisiert den ESP-Stack
         Serial.println("FEHLER: esp_now_init");
         ESP.restart();
     }
-    esp_now_register_send_cb(onDataSent);
+    esp_now_register_send_cb(onDataSent); //Nach jedem Sendeversuch ruft das System automatisch onDataSent auf
 
-    esp_now_peer_info_t peer = {};
+    esp_now_peer_info_t peer = {}; // Erstellt eine Peer-Konfigurationsstruktur. 
+    //Ein „Peer“ ist bei ESP-NOW der Gegenknoten, den man ansprechen will.
     memcpy(peer.peer_addr, peer_mac, 6);
     peer.channel = ESPNOW_CHANNEL;
     peer.encrypt = false;
 
-    if (esp_now_add_peer(&peer) == ESP_OK) {
+    if (esp_now_add_peer(&peer) == ESP_OK) { //fügt dem Empfänger als Peer hinzu
         s_peer_added = true;
         memcpy(s_hub_mac, peer_mac, 6);
     } else {
@@ -96,7 +97,7 @@ void espnow_init_sender(uint8_t board_id, const uint8_t* peer_mac) {
     }
 }
 
-esp_err_t espnow_send(const RowingPacket* pkt) {
+esp_err_t espnow_send(const RowingPacket* pkt) { //sendet paket an alle (weil s_hub_mac als broadcast definiert ist)
     if (!s_peer_added) return ESP_FAIL;
     return esp_now_send(s_hub_mac, (const uint8_t*)pkt, sizeof(RowingPacket));
 }

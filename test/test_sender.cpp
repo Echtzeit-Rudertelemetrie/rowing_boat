@@ -34,7 +34,8 @@ static uint16_t angleBuffer[PACKET_VALUES];
 static uint8_t  bufferIndex  = 0;
 static uint32_t packetSeq    = 0;
 
-uint16_t quantize(float v, float vmin, float vmax, uint8_t bits) {
+//macht aus einer Float eine bitnummer die so lange ist wie die angegebene
+uint16_t quantize(float v, float vmin, float vmax, uint8_t bits) { 
     const uint32_t maxInt = (1UL << bits) - 1;
     if (v <= vmin) return 0;
     if (v >= vmax) return (uint16_t)maxInt;
@@ -70,12 +71,12 @@ void setup() {
     Serial.printf("Sende %d Werte pro Paket, %d-fache Wiederholung\n", PACKET_VALUES, PACKET_RETRIES);
 
     uint8_t local_mac[6];
-    WiFi.macAddress(local_mac);
+    WiFi.macAddress(local_mac); //liest die eigene Mac Adresse
     Serial.printf("Meine MAC: %02X:%02X:%02X:%02X:%02X:%02X\n",
                   local_mac[0], local_mac[1], local_mac[2],
                   local_mac[3], local_mac[4], local_mac[5]);
 
-    espnow_init_sender(BOARD_ID, hub_mac);
+    espnow_init_sender(BOARD_ID, hub_mac); //broadcast als peer registrieren
 
     randomSeed((uint32_t)BOARD_ID * 12345u + micros());
     Serial.println("Bereit - sammle und sende gebuendelt\n");
@@ -85,16 +86,17 @@ void loop() {
     static uint32_t lastSample = 0;
     uint32_t now = millis();
 
-    if (now - lastSample < SAMPLE_PERIOD_MS) return;
+    if (now - lastSample < SAMPLE_PERIOD_MS) return; //warten bis das letzte Sample 5 sekunder her ist
     lastSample = now;
 
     float angle_deg, force_N;
     simulateStroke(angle_deg, force_N);
 
-    forceBuffer[bufferIndex] = quantize(force_N,   FORCE_MIN_N,   FORCE_MAX_N,   11);
+    forceBuffer[bufferIndex] = quantize(force_N,   FORCE_MIN_N,   FORCE_MAX_N,   11); //Messdaten in Buffer schreiben
     angleBuffer[bufferIndex] = quantize(angle_deg, ANGLE_MIN_DEG, ANGLE_MAX_DEG, 10);
     bufferIndex++;
 
+    //Falls Buffer groß genug zum verschicken ist
     if (bufferIndex == PACKET_VALUES) {
         RowingPacket pkt;
         pkt.board_id = BOARD_ID;
@@ -102,13 +104,13 @@ void loop() {
         memcpy(pkt.force, forceBuffer, sizeof(forceBuffer));
         memcpy(pkt.angle, angleBuffer, sizeof(angleBuffer));
 
-        for (int retry = 0; retry < PACKET_RETRIES; retry++) {
+        for (int retry = 0; retry < PACKET_RETRIES; retry++) { //3 mal senden probieren
             esp_now_send(hub_mac, (const uint8_t*)&pkt, sizeof(pkt));
             if (retry < PACKET_RETRIES - 1) delay(1);
         }
 
         static uint32_t lastLog = 0;
-        if (now - lastLog > 500) {
+        if (now - lastLog > 500) { //logging ausgaben
             lastLog = now;
             Serial.printf("Seq=%u (%dfach) | Kraft=%u | Winkel=%u\n",
                           pkt.seq, PACKET_RETRIES, pkt.force[0], pkt.angle[0]);

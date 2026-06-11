@@ -28,6 +28,7 @@ float easeInOut(float t) {
     return (1.0f - cosf(t * PI)) * 0.5f;
 }
 
+//Ruder oberhalb des Wassers
 void recoveryPhase() {
     unsigned long start = millis();
     while (millis() - start < RECOVERY_DURATION_MS) {
@@ -38,6 +39,7 @@ void recoveryPhase() {
     }
 }
 
+//Ruder im Wasser
 void drivePhase() {
     unsigned long start = millis();
     while (millis() - start < DRIVE_DURATION_MS) {

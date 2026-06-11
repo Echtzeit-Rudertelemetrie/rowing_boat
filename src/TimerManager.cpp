@@ -13,7 +13,7 @@ bool TimerManager::begin(uint32_t frequencyHz)
     // Prescaler 80 -> 80 MHz / 80 = 1 MHz
     // 1 Tick = 1 µs
 
-    timer_ = timerBegin(0, 80, true);
+    timer_ = timerBegin(0, 40, true); //TODO: Check if this is 80 for ESP Wroom or 40 for ESP Mini S3
 
     if (timer_ == nullptr)
         return false;
