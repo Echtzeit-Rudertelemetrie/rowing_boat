@@ -6,7 +6,11 @@
 #define PIN_MISO 19
 #define PIN_SCK 18
 
-SPIClass *spi = new SPIClass(VSPI);
+#if CONFIG_IDF_TARGET_ESP32S3 //mini
+  SPIClass *spi = new SPIClass(FSPI);
+#else
+  SPIClass *spi = new SPIClass(VSPI);
+#endif
 
 #define REG_STATUS 0x00
 #define REG_ADC_CTRL 0x01
