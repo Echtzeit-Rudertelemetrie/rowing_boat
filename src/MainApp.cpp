@@ -29,8 +29,6 @@ void MainApp::begin() {
     }
   }
 
-  eval_setup();
-
   Serial.println("System gestartet.");
 }
 
@@ -73,12 +71,12 @@ void MainApp::run() {
 void MainApp::handleEvent(EventType event) {
     switch (event) {
         case EventType::ReadSensor1: {
-            latest_.sensor1 = sensor_.ReadSensor1();
+            latest_.forceSensor = sensor_.ReadForce();
             break;
         }
 
         case EventType::ReadSensor2: {
-            latest_.sensor2 = sensor_.ReadSensor2();
+            latest_.degreeSensor = sensor_.ReadDregee();
             break;
         }
 

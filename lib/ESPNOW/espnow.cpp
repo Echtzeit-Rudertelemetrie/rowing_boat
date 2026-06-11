@@ -1,11 +1,14 @@
 #include "espnow.h"
 
-static uint8_t s_hub_mac[6]       = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
-static bool    s_peer_added       = false;
-static uint8_t s_board_id_sender  = 0;
+static uint8_t s_hub_mac[6]       = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF}; //-> Broadcast
+static bool    s_peer_added       = false; // -> ist peer schon hinzugefügt?
+static uint8_t s_board_id_sender  = 0; //Sende_Id_speichern (wird nicht verwendet?)
 
 static constexpr uint8_t MAX_BOARD_ID = 255;
-static volatile uint32_t s_total_raw_packets[MAX_BOARD_ID + 1] = {0};
+// -> zählen wie Pakete angekommen sind, was die letzte Sequenz war, was die höchste sequenz war, ob von der
+// board_id schon was gesendet wurde. Jeder Array eintrag ist eine Adresse
+// volatile macht, dass die arrays sich noch in der Größe ändern können -> nicht zu krass optimieren
+static volatile uint32_t s_total_raw_packets[MAX_BOARD_ID + 1] = {0}; 
 static volatile uint32_t s_logical_packets[MAX_BOARD_ID + 1]   = {0};
 static volatile uint32_t s_last_seq[MAX_BOARD_ID + 1]          = {0};
 static volatile uint32_t s_max_seen_seq[MAX_BOARD_ID + 1]      = {0};

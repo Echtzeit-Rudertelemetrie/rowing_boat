@@ -5,12 +5,12 @@ void Sensor::begin() {
   pinMode(SENSOR2_PIN, INPUT);
 }
 
-float Sensor::ReadSensor1() {
+float Sensor::ReadForce() {
   const int raw = analogRead(SENSOR1_PIN);
   return (raw * 3.3f) / 4095.0f;
 }
 
-float Sensor::ReadSensor2() {
+float Sensor::ReadDregree() {
   const int raw = analogRead(SENSOR2_PIN);
   return (raw * 3.3f) / 4095.0f;
 }
