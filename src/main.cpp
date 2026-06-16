@@ -1,141 +1,128 @@
 #include <Arduino.h>
-#include <SPI.h>
+#include <WiFi.h>
+#include <esp_now.h>
+#include <esp_wifi.h>
+#include <esp_idf_version.h>
 
-#define PIN_CS 5
-#define PIN_MOSI 23
-#define PIN_MISO 19
-#define PIN_SCK 18
+static constexpr uint8_t ESPNOW_CHANNEL = 11;
 
-SPIClass *spi = new SPIClass(VSPI);
+static void printMacAddress(const uint8_t *mac) {
+  Serial.printf("%02X:%02X:%02X:%02X:%02X:%02X",
+                mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+}
 
-#define REG_STATUS 0x00
-#define REG_ADC_CTRL 0x01
-#define REG_DATA 0x02
-#define REG_ID 0x05
-#define REG_CH0 0x09
-#define REG_CONFIG0 0x19
-#define REG_FILTER0 0x21
-
-#define CMD_READ 0x40
-#define CMD_WRITE 0x00
-
-const float VREF = 3.3f;
-const float PGA = 128.0f;
-const float FS = 8388608.0f;
-const uint16_t AVG_SIZE = 16;
-
-float tara_uV = 0;
-float avg_buf[16] = {0};
-uint8_t avg_idx = 0;
-float avg_sum = 0;
-bool tara_set = false;
-
-void csLow() { digitalWrite(PIN_CS, LOW); }
-void csHigh() { digitalWrite(PIN_CS, HIGH); }
-
-void writeReg(uint8_t addr, uint32_t data, uint8_t len) {
-  csLow();
-  spi->transfer(CMD_WRITE | (addr & 0x3F));
-  for (int i = len-1; i >= 0; i--) {
-    spi->transfer((data >> (8*i)) & 0xFF);
+static void printU16Array(const uint8_t *data, int offsetBytes, int count) {
+  for (int i = 0; i < count; ++i) {
+    uint16_t value = 0;
+    memcpy(&value, data + offsetBytes + i * sizeof(uint16_t), sizeof(value));
+    Serial.printf("%u", value);
+    if (i + 1 < count) {
+      Serial.print(", ");
+    }
   }
-  csHigh();
 }
 
-uint32_t readReg(uint8_t addr, uint8_t len) {
-  csLow();
-  spi->transfer(CMD_READ | (addr & 0x3F));
-  uint32_t val = 0;
-  for (uint8_t i = 0; i < len; i++) {
-    val = (val << 8) | spi->transfer(0x00);
+static void dumpRawHex(const uint8_t *data, int len) {
+  for (int i = 0; i < len; ++i) {
+    Serial.printf("%02X", data[i]);
+    if (i + 1 < len) {
+      Serial.print(" ");
+    }
   }
-  csHigh();
-  return val;
 }
 
-void ad7124_reset() {
-  csLow();
-  for (int i=0;i<8;i++) spi->transfer(0xFF);
-  csHigh();
-  delay(10);
+static void handlePacket(const uint8_t *mac, const uint8_t *incomingData, int len) {
+  Serial.print("RX von ");
+  printMacAddress(mac);
+  Serial.printf(" | len=%d | ", len);
+
+  if (len < static_cast<int>(sizeof(uint32_t))) {
+    Serial.println("FEHLER: Paket zu kurz");
+    return;
+  }
+
+  uint32_t header = 0;
+  memcpy(&header, incomingData, sizeof(header));
+
+  const uint8_t  espId = static_cast<uint8_t>((header >> 29) & 0x07u);
+  const uint32_t seq   = header & 0x1FFFFFFFu;
+
+  Serial.printf("espId=%u | seq=%lu", espId, static_cast<unsigned long>(seq));
+
+  const int payloadBytes = len - static_cast<int>(sizeof(uint32_t));
+
+  if (payloadBytes <= 0 || (payloadBytes % 4) != 0) {
+    Serial.println(" | FEHLER: Unerwartete Paketlaenge");
+    Serial.print("Raw: ");
+    dumpRawHex(incomingData, len);
+    Serial.println();
+    return;
+  }
+
+  const int valueCount = payloadBytes / 4; // force[] + angle[] je uint16_t => 4 Bytes pro Index
+
+  Serial.printf(" | Werte pro Array=%d\n", valueCount);
+
+  Serial.print("  force_values : [");
+  printU16Array(incomingData, 4, valueCount);
+  Serial.println("]");
+
+  Serial.print("  angle_values : [");
+  printU16Array(incomingData, 4 + valueCount * 2, valueCount);
+  Serial.println("]");
+  Serial.println();
 }
 
-void ad7124_init() {
-  pinMode(PIN_CS, OUTPUT);
-  csHigh();
-  spi->begin(PIN_SCK, PIN_MISO, PIN_MOSI, PIN_CS);
-  spi->beginTransaction(SPISettings(1000000, MSBFIRST, SPI_MODE3));
-
-  ad7124_reset();
-
-  uint32_t id = readReg(REG_ID, 1);
-  Serial.printf("AD7124 ID: 0x%02X\n", id);
-
-  writeReg(REG_ADC_CTRL, 0x0180, 2);
-
-  uint16_t cfg0 = 0x087F;
-  writeReg(REG_CONFIG0, cfg0, 2);
-
-  writeReg(REG_FILTER0, 0x060180, 3);
-
-  uint16_t ch0 = 0x8001;
-  writeReg(REG_CH0, ch0, 2);
-
-  delay(100);
-  Serial.println("zeit_ms,raw,spannung_uV,kraft");
+#if ESP_IDF_VERSION_MAJOR >= 5
+void onDataRecv(const esp_now_recv_info_t *recv_info, const uint8_t *incomingData, int len) {
+  if (recv_info == nullptr || recv_info->src_addr == nullptr || incomingData == nullptr || len <= 0) {
+    return;
+  }
+  handlePacket(recv_info->src_addr, incomingData, len);
 }
+#else
+void onDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
+  if (mac == nullptr || incomingData == nullptr || len <= 0) {
+    return;
+  }
+  handlePacket(mac, incomingData, len);
+}
+#endif
 
-float movingAvg(float v) {
-  avg_sum -= avg_buf[avg_idx];
-  avg_buf[avg_idx] = v;
-  avg_sum += v;
-  avg_idx = (avg_idx + 1) % AVG_SIZE;
-  return avg_sum / AVG_SIZE;
+static void initEspNowReceiver() {
+  WiFi.mode(WIFI_STA);
+  WiFi.disconnect();
+  WiFi.setSleep(false);
+
+  if (esp_wifi_set_channel(ESPNOW_CHANNEL, WIFI_SECOND_CHAN_NONE) != ESP_OK) {
+    Serial.println("FEHLER: esp_wifi_set_channel() fehlgeschlagen");
+  }
+
+  if (esp_wifi_set_ps(WIFI_PS_NONE) != ESP_OK) {
+    Serial.println("FEHLER: esp_wifi_set_ps(WIFI_PS_NONE) fehlgeschlagen");
+  }
+
+  if (esp_now_init() != ESP_OK) {
+    Serial.println("FEHLER: esp_now_init() fehlgeschlagen");
+    ESP.restart();
+  }
+
+  if (esp_now_register_recv_cb(onDataRecv) != ESP_OK) {
+    Serial.println("FEHLER: esp_now_register_recv_cb() fehlgeschlagen");
+    ESP.restart();
+  }
+
+  Serial.println("ESP-NOW Empfaenger initialisiert.");
 }
 
 void setup() {
   Serial.begin(115200);
-  delay(500);
-  Serial.println("\n=== AD7124-8 DMS Messung ===");
-  ad7124_init();
+  delay(1000);
+  Serial.println();
+  Serial.println("Starte ESP32 ESP-NOW Broadcast-Receiver...");
+  initEspNowReceiver();
 }
 
 void loop() {
-  if (Serial.available()) {
-    char c = Serial.read();
-    if (c=='t' || c=='T') {
-      tara_uV = movingAvg(0);
-      tara_set = true;
-      Serial.println("# Tara gesetzt");
-    }
-  }
-
-  uint32_t status = readReg(REG_STATUS, 1);
-  if (status & 0x80) {
-    delay(5);
-    return;
-  }
-
-  uint32_t data = readReg(REG_DATA, 3);
-  int32_t raw = (int32_t)data - 0x800000;
-
-  float uV = (raw * VREF * 1e6) / (PGA * FS);
-  float uV_avg = movingAvg(uV);
-
-  if (!tara_set && millis() > 2000) {
-    tara_uV = uV_avg;
-    tara_set = true;
-  }
-
-  float kraft = (uV_avg - tara_uV) * 1.0f;
-
-  static uint32_t last = 0;
-  if (millis() - last >= 100) {
-    last = millis();
-    //Serial.printf("%lu,%ld,%.2f,%.2f\n", last, raw, uV_avg, kraft);
-    Serial.printf(">last:%lu\n", last);
-    Serial.printf(">raw:%ld\n", raw);
-    Serial.printf(">uV_avg:%.2f\n", uV_avg);
-    Serial.printf(">kraft:%.2f\n", kraft);
-  }
+  delay(1000);
 }
