@@ -1,4 +1,4 @@
-#include <Arduino.h>
+/*#include <Arduino.h>
 #include <SPI.h>
 
 #define PIN_CS 5
@@ -138,4 +138,4 @@ void eval_loop() {
     Serial.printf(">uV_avg:%.2f\n", uV_avg);
     Serial.printf(">kraft:%.2f\n", kraft);
   //}
-}
+}*/
