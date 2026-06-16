@@ -29,13 +29,13 @@ magnet_noise = 0.64;
 accel_n = accel / norm(accel);
 mag_n   = mag   / norm(mag);
 
-% Predict
+% Predict -> wachsende Unsicherheit weil nur Gyro verwendet wird
 q_pred = normalize_q(q + 0.5 * dt * omega_mat(gyro) * q);
 F      = eye(4) + 0.5 * dt * omega_mat(gyro);
 W      = 0.5 * dt * W_mat(q);
 P_pred = F * P * F' + (W * W') * gyro_noise;
 
-% Measurement
+% Measurement -> Korrektur durch Accelerometer und Magnetometer um Drift zu stoppen
 z = [accel_n; mag_n];  % 6x1
 h = [rot_vec(q_pred, accel_ref); rot_vec(q_pred, mag_ref)];
 

@@ -14,7 +14,7 @@
 
 #define ESPNOW_MAX_BOARD_ID 255
 
-typedef struct __attribute__((packed)) {
+typedef struct __attribute__((packed)) { //__attribute__((packed)) macht, dass keine Paddingbytes dazwischen gepackt werden
     uint8_t   board_id;
     uint32_t  seq;
     uint16_t  force[PACKET_VALUES];

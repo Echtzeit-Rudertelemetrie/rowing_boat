@@ -1,3 +1,7 @@
+% Aus dem normierten Accelerometer ergibt sich die Down-Richtung D = -accel, aus cross(D, mag) die East-Achse E, aus cross(E, D) die North-Achse N.
+% Die drei Achsen bilden eine Rotationsmatrix C, die per dcm2quat zur Quaternion wird und in poseplot angezeigt wird.
+% Das erklärt das Messmodell des EKF: Schwerkraft + Magnetfeld legen die Orientierung absolut fest.
+
 close all
 clear
 delete(serialportfind)

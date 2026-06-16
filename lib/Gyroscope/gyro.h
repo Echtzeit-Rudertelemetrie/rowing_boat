@@ -15,4 +15,3 @@ void calibrateGyro(int samples = 2000);
 // Read the sensor, integrate the angle, and print to Serial
 // We pass the servoAngle in so we can print it alongside the gyro data
 void sampleAndPlot(float servoAngle);
-

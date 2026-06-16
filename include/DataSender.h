@@ -2,24 +2,28 @@
 
 #include <Arduino.h>
 #include <esp_now.h>
+#include <WiFi.h>
+#include <esp_wifi.h>
+
+#include <climits>
 #include "AppTypes.h"
 
-#define PACKET_RETRIES 3
-#define ESPNOW_CHANNEL 11
+constexpr std::uint8_t PACKET_RETRIES = 3;
+constexpr std::uint8_t ESPNOW_CHANNEL = 11;
+constexpr std::uint8_t ESP_ID = 1;
 
-constexpr uint8_t ESP_ID = 1;
-
-constexpr float FORCE_MIN_N     =    0.0f;
-constexpr float FORCE_MAX_N     = 1000.0f;
-constexpr float ANGLE_MIN_DEG   =  -90.0f;
-constexpr float ANGLE_MAX_DEG   =  +90.0f;
+constexpr float FORCE_MIN_N   = 0.0f;
+constexpr float FORCE_MAX_N   = 1000.0f;
+constexpr float ANGLE_MIN_DEG = -90.0f;
+constexpr float ANGLE_MAX_DEG =  90.0f;
 
 class DataSender {
 public:
-  explicit DataSender(MeasurementData& data);
+    explicit DataSender(MeasurementData& data);
 
-  void sendData();
+    void espnow_init_sender(std::uint8_t /*board_id*/, const std::uint8_t* peerMac);
+    void sendData();
 
 private:
-  MeasurementData* data_;
+    MeasurementData* data_{nullptr};
 };

@@ -1,10 +1,7 @@
-#include "gyro.h"
+/*#include "gyro.h"
 #include <LittleFS.h>
-#include "../logging.hpp"
 #include <MadgwickAHRS.h>
 #include <math.h>
-
-#include "filter/kalman.hpp"
 #include <Adafruit_MMC56x3.h> // MMC56X3 Magnetometer
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -145,7 +142,7 @@ void sampleAndPlot(float servoAngle)
         2.0f * (qw*qz + qx*qy),
         1.0f - 2.0f * (qy*qy + qz*qz));
 
-    // 5. EKF Nullpunkt beim ersten gültigen Sample setzen — gleiche Logik wie angle_raw
+    // 5. EKF Nullpunkt beim ersten gültigen Sample setzen — gleiche Logik wie angle_raw (offset setzen halt)
     if (!ekf_initialized)
     {
         ekf_angle_offset = angle_ekf;
@@ -153,6 +150,7 @@ void sampleAndPlot(float servoAngle)
         return;
     }
 
+    //offset abziehen
     float angle_ekf_zeroed = angle_ekf - ekf_angle_offset;
 
 
@@ -165,25 +163,25 @@ void sampleAndPlot(float servoAngle)
 
     float angle_normed = angle * (180.0f / PI);
     float angle_EKF_normed = angle_ekf_zeroed * (180.0f / PI);
-    // float angle_EKF_ekf_quaternion = ekf_quaternion * (180.0f / PI);
+    // float angle_EKF_ekf_quaternion = ekf_quaternion * (180.0f / PI); -> Umrechnung in Grad
     float accel_x_normed = accel_angle_x * (180.0f / PI);
     float accel_y_normed = accel_angle_y * (180.0f / PI);
     float accel_z_normed = accel_angle_z * (180.0f / PI);
 
-        Serial.printf(">imu/angle_EKF: %.4f\n", angle_EKF_normed);
-        Serial.printf(">imu/angle_raw: %.4f\n", angle_normed);
-        Serial.printf(">imu/Gyro_x: %.4f\n", g.gyro.x);
-        Serial.printf(">imu/Gyro_y: %.4f\n", g.gyro.y);
-        Serial.printf(">imu/Gyro_z: %.4f\n", g.gyro.z);
+    Serial.printf(">imu/angle_EKF: %.4f\n", angle_EKF_normed);
+    Serial.printf(">imu/angle_raw: %.4f\n", angle_normed);
+    Serial.printf(">imu/Gyro_x: %.4f\n", g.gyro.x);
+    Serial.printf(">imu/Gyro_y: %.4f\n", g.gyro.y);
+    Serial.printf(">imu/Gyro_z: %.4f\n", g.gyro.z);
 
-        // Serial.printf(">imu/angle_kalman: %.4f\n",  angle_EKF_ekf_quaternion);
-        Serial.printf(">imu/accel_angle: %.4f\n", accel_y_normed);
-        Serial.printf(">imu/Acce_x: %.4f\n", a.acceleration.x);
-        Serial.printf(">imu/Acce_y: %.4f\n", a.acceleration.y);
-        Serial.printf(">imu/Acce_z: %.4f\n", a.acceleration.z);
-        // Magnetometer Rohwerte zur Diagnose
-        Serial.printf(">mag/x: %.4f\n", mag.magnetic.x);
-        Serial.printf(">mag/y: %.4f\n", mag.magnetic.y);
-        Serial.printf(">mag/z: %.4f\n", mag.magnetic.z);
+    // Serial.printf(">imu/angle_kalman: %.4f\n",  angle_EKF_ekf_quaternion);
+    Serial.printf(">imu/accel_angle: %.4f\n", accel_y_normed);
+    Serial.printf(">imu/Acce_x: %.4f\n", a.acceleration.x);
+    Serial.printf(">imu/Acce_y: %.4f\n", a.acceleration.y);
+    Serial.printf(">imu/Acce_z: %.4f\n", a.acceleration.z);
+    // Magnetometer Rohwerte zur Diagnose
+    Serial.printf(">mag/x: %.4f\n", mag.magnetic.x);
+    Serial.printf(">mag/y: %.4f\n", mag.magnetic.y);
+    Serial.printf(">mag/z: %.4f\n", mag.magnetic.z);
     }
-}
+} */

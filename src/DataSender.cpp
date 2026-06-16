@@ -18,7 +18,7 @@ void onDataSent(const uint8_t* /*mac*/, esp_now_send_status_t status) {
     (void)status;
 }
 
-void espnow_init_sender(std::uint8_t /*board_id*/, const std::uint8_t* peerMac) {
+void DataSender::espnow_init_sender(std::uint8_t /*board_id*/, const std::uint8_t* peerMac) {
     //s_board_id_sender = board_id; -> brauch ich das?
     WiFi.mode(WIFI_STA); //-> Stationary Funkteilnehmer und nicht access point
     WiFi.disconnect(); //Kein Wlan an
@@ -48,19 +48,19 @@ void espnow_init_sender(std::uint8_t /*board_id*/, const std::uint8_t* peerMac) 
     }
 }
 
-    std::uint16_t quantize(float value, float minValue, float maxValue, std::uint8_t bits) {
-      const std::uint32_t maxInt = (1UL << bits) - 1UL;
+  std::uint16_t quantize(float value, float minValue, float maxValue, std::uint8_t bits) {
+    const std::uint32_t maxInt = (1UL << bits) - 1UL;
 
-      if (value <= minValue) {
-          return 0;
-      }
-      if (value >= maxValue) {
-          return static_cast<std::uint16_t>(maxInt);
-      }
-
-      const float normalized = (value - minValue) / (maxValue - minValue);
-      return static_cast<std::uint16_t>(normalized * maxInt + 0.5f);
+    if (value <= minValue) {
+        return 0;
     }
+    if (value >= maxValue) {
+        return static_cast<std::uint16_t>(maxInt);
+    }
+
+    const float normalized = (value - minValue) / (maxValue - minValue);
+    return static_cast<std::uint16_t>(normalized * maxInt + 0.5f);
+  }
 
 esp_err_t espnow_send(const MeasurementPack* pkt) { //sendet paket an alle (weil s_hub_mac als broadcast definiert ist)
     if (!peerAdded)

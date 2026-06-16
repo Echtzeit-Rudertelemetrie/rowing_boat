@@ -73,7 +73,7 @@ for i = 1:9
     fprintf("%-10s  %10.5f  %10.5f  %10.5f\n", labels(i), means(i), stds(i), vars(i));
 end
 
-%% EKF noise values (variance of the measurement noise)
+%% EKF noise values (variance of the measurement noise). Die Messkovarianz und das Prozessrauschen. Sie bestimmen wie sehr der Filter den Sensoren vertraut
 accel_noise_ekf  = mean(vars(1:3));
 gyro_noise_ekf   = mean(vars(4:6));
 magnet_noise_ekf = mean(vars(7:9) * 1e-12);  % converted to T²

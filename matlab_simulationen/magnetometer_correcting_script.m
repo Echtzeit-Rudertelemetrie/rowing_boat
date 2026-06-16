@@ -9,6 +9,7 @@ num_runs   = 5;  % Anzahl Iterationen
 A_all = zeros(3, 3, num_runs);
 b_all = zeros(num_runs, 3);
 
+%rotiert durch alle Lagen und sammelt Rohpunkte
 for run = 1:num_runs
     fprintf("Run %d/%d — Sensor rotieren, dann Enter drücken\n", run, num_runs);
     pause();  % Warten bis bereit
@@ -48,8 +49,10 @@ disp('Gemitteltes b:'); disp(b);
 scatter3(mag_ave(:,1), mag_ave(:,2), mag_ave(:,3));
 hold all
 
-% Find calibration coefficients
-[A, b, expMFS] = magcal(mag_ave);
+% Find calibration coefficients. (A = Soft Iron Matrix -> macht Entzerrung des verformten Ellipsoids zur Kugel).
+% Notwendig, weil das Erdmagnetfeld durch nahe Metalle/Ströme verzerrt wird; ohne Korrektur eiert der Kompass.
+% (b = Hard-Iron-Korrektur -> Mittelpunktverschiebung der Messkugel)
+[A, b, expMFS] = magcal(mag_ave); % -> calculation
 xCorrected = (mag_ave - b) * A;
 
 %Calibrated ellipsoid

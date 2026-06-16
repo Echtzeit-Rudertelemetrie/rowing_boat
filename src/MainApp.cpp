@@ -76,7 +76,7 @@ void MainApp::handleEvent(EventType event) {
         }
 
         case EventType::ReadSensor2: {
-            latest_.degreeSensor = sensor_.ReadDregee();
+            latest_.degreeSensor = sensor_.ReadAngle();
             break;
         }
 
