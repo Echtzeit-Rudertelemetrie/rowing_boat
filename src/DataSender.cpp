@@ -111,8 +111,12 @@ void DataSender::sendData() {
     memcpy(pkt.force_values, forceBuffer, sizeof(forceBuffer));
     memcpy(pkt.angle_values, angleBuffer, sizeof(angleBuffer));
 
-    for (std::uint8_t retry = 0; retry < PACKET_RETRIES; ++retry) {
-        esp_now_send(hubMac, reinterpret_cast<const std::uint8_t*>(&pkt), sizeof(pkt));
+    // Nur senden, wenn ESP-NOW initialisiert und ein Peer hinzugefuegt wurde.
+    // Sonst stuerzt esp_now_send() auf dem uninitialisierten Stack ab (LoadProhibited).
+    if (peerAdded) {
+        for (std::uint8_t retry = 0; retry < PACKET_RETRIES; ++retry) {
+            esp_now_send(hubMac, reinterpret_cast<const std::uint8_t*>(&pkt), sizeof(pkt));
+        }
     }
 
     bufferIndex = 0;

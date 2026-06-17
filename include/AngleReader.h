@@ -6,6 +6,10 @@
 class AngleReader {
 public:
     AngleReader();
+    // Initialisiert die I2C-Sensoren (MPU6050 + MMC56x3).
+    // MUSS nach Serial.begin()/Wire.begin() aufgerufen werden, nicht im Konstruktor.
+    // Gibt false zurueck, wenn ein Sensor nicht gefunden wurde (blockiert nicht).
+    bool begin();
     float sampleAndCalculateAngle();
 
 private:

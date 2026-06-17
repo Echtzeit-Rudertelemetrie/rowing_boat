@@ -1,4 +1,5 @@
 #include "MainApp.h"
+#include "esp_system.h"
 
 MainApp::MainApp()
 : latest_{}
@@ -12,8 +13,10 @@ void MainApp::begin() {
   Serial.begin(115200);
   delay(200);
 
-  Serial.println("Begin");
+  Serial.printf("Begin (reset_reason=%d)\n", (int)esp_reset_reason());
 
+  // Sensor-Hardware wird hier initialisiert (NICHT mehr im Konstruktor),
+  // damit Serial bereits laeuft und fehlende Hardware den Boot nicht blockiert.
   sensor_.begin();
 
   // Die Queue sollte groß genug sein, damit kurze Lastspitzen nicht sofort Events verlieren.
@@ -35,10 +38,6 @@ void MainApp::begin() {
 }
 
 void MainApp::run() {
-  while(1)
-  {
-    Serial.println("in loop");
-  }
   for (;;) {
     EventType event;
 

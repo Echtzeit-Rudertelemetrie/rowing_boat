@@ -1,9 +1,15 @@
 #include "Sensor.h"
 #include "AngleReader.h"
 #include "ForceReader.h"
+#include <Wire.h>
 
 void Sensor::begin() {
+  // I2C starten, bevor die Sensoren initialisiert werden.
+  Wire.begin();
 
+  if (!angleReader.begin()) {
+    Serial.println("AngleReader: Sensor(en) nicht gefunden - laeuft mit Dummy-Werten weiter.");
+  }
 }
 
 float Sensor::ReadForce() {
