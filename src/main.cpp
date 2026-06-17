@@ -10,9 +10,9 @@ static constexpr uint8_t PACKET_VALUES = 10; // Bitte mit deinem AppTypes.h Wert
 
 // Das exakt gleiche Struct wie beim Sender definieren
 typedef struct __attribute__((packed)) {
+  uint32_t espIdAndSequenceNum;
   uint16_t force_values[PACKET_VALUES];
   uint16_t angle_values[PACKET_VALUES];
-  uint32_t espIdAndSequenceNum;
 } MeasurementPack;
 
 static void printMacAddress(const uint8_t *mac) {
