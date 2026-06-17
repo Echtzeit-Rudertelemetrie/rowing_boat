@@ -4,87 +4,68 @@
 #include <esp_wifi.h>
 #include <esp_idf_version.h>
 
+// WICHTIG: Diese Werte müssen exakt denen aus dem Sender entsprechen!
 static constexpr uint8_t ESPNOW_CHANNEL = 11;
+static constexpr uint8_t PACKET_VALUES = 10; // Bitte mit deinem AppTypes.h Wert abgleichen!
+
+// Das exakt gleiche Struct wie beim Sender definieren
+typedef struct __attribute__((packed)) {
+  uint16_t force_values[PACKET_VALUES];
+  uint16_t angle_values[PACKET_VALUES];
+  uint32_t espIdAndSequenceNum;
+} MeasurementPack;
 
 static void printMacAddress(const uint8_t *mac) {
   Serial.printf("%02X:%02X:%02X:%02X:%02X:%02X",
                 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 }
 
-static void printU16Array(const uint8_t *data, int offsetBytes, int count) {
-  for (int i = 0; i < count; ++i) {
-    uint16_t value = 0;
-    memcpy(&value, data + offsetBytes + i * sizeof(uint16_t), sizeof(value));
-    Serial.printf("%u", value);
-    if (i + 1 < count) {
-      Serial.print(", ");
-    }
-  }
-}
-
-static void dumpRawHex(const uint8_t *data, int len) {
-  for (int i = 0; i < len; ++i) {
-    Serial.printf("%02X", data[i]);
-    if (i + 1 < len) {
-      Serial.print(" ");
-    }
-  }
-}
-
 static void handlePacket(const uint8_t *mac, const uint8_t *incomingData, int len) {
   Serial.print("RX von ");
   printMacAddress(mac);
-  Serial.printf(" | len=%d | ", len);
+  Serial.printf(" | len=%d\n", len);
 
-  if (len < static_cast<int>(sizeof(uint32_t))) {
-    Serial.println("FEHLER: Paket zu kurz");
+  // Prüfen, ob die Länge genau der Größe unseres Structs entspricht
+  if (len != sizeof(MeasurementPack)) {
+    Serial.printf("FEHLER: Falsche Paketlänge. Erwartet: %u, Erhalten: %d\n", sizeof(MeasurementPack), len);
     return;
   }
 
-  uint32_t header = 0;
-  memcpy(&header, incomingData, sizeof(header));
+  // Daten elegant in das Struct casten
+  const MeasurementPack* pkt = reinterpret_cast<const MeasurementPack*>(incomingData);
 
-  const uint8_t  espId = static_cast<uint8_t>((header >> 29) & 0x07u);
-  const uint32_t seq   = header & 0x1FFFFFFFu;
+  // Werte auslesen
+  const uint8_t  espId = static_cast<uint8_t>((pkt->espIdAndSequenceNum >> 29) & 0x07u);
+  const uint32_t seq   = pkt->espIdAndSequenceNum & 0x1FFFFFFFu;
 
-  Serial.printf("espId=%u | seq=%lu", espId, static_cast<unsigned long>(seq));
+  Serial.printf("=== Empfangenes Paket ===\n");
+  Serial.printf("ESP-ID: %u | Sequenz: %lu\n", espId, static_cast<unsigned long>(seq));
 
-  const int payloadBytes = len - static_cast<int>(sizeof(uint32_t));
-
-  if (payloadBytes <= 0 || (payloadBytes % 4) != 0) {
-    Serial.println(" | FEHLER: Unerwartete Paketlaenge");
-    Serial.print("Raw: ");
-    dumpRawHex(incomingData, len);
-    Serial.println();
-    return;
+  // Force Arrays ausgeben
+  Serial.print("force_values: [");
+  for(int i = 0; i < PACKET_VALUES; i++) {
+    Serial.print(pkt->force_values[i]);
+    if(i < PACKET_VALUES - 1) Serial.print(", ");
   }
-
-  const int valueCount = payloadBytes / 4; // force[] + angle[] je uint16_t => 4 Bytes pro Index
-
-  Serial.printf(" | Werte pro Array=%d\n", valueCount);
-
-  Serial.print("  force_values : [");
-  printU16Array(incomingData, 4, valueCount);
   Serial.println("]");
 
-  Serial.print("  angle_values : [");
-  printU16Array(incomingData, 4 + valueCount * 2, valueCount);
-  Serial.println("]");
-  Serial.println();
+  // Angle Arrays ausgeben
+  Serial.print("angle_values: [");
+  for(int i = 0; i < PACKET_VALUES; i++) {
+    Serial.print(pkt->angle_values[i]);
+    if(i < PACKET_VALUES - 1) Serial.print(", ");
+  }
+  Serial.println("]\n");
 }
 
 #if ESP_IDF_VERSION_MAJOR >= 5
 void onDataRecv(const esp_now_recv_info_t *recv_info, const uint8_t *incomingData, int len) {
-  if (recv_info == nullptr || recv_info->src_addr == nullptr || incomingData == nullptr || len <= 0) {
-    return;
-  }
+  if (recv_info == nullptr || recv_info->src_addr == nullptr || incomingData == nullptr || len <= 0) return;
   handlePacket(recv_info->src_addr, incomingData, len);
 }
 #else
 void onDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
-  if (mac == nullptr || incomingData == nullptr || len <= 0) {
-    return;
-  }
+  if (mac == nullptr || incomingData == nullptr || len <= 0) return;
   handlePacket(mac, incomingData, len);
 }
 #endif
@@ -92,34 +73,29 @@ void onDataRecv(const uint8_t *mac, const uint8_t *incomingData, int len) {
 static void initEspNowReceiver() {
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
-  WiFi.setSleep(false);
+  WiFi.setSleep(false); // Sehr gut für ESP-NOW Empfang
 
   if (esp_wifi_set_channel(ESPNOW_CHANNEL, WIFI_SECOND_CHAN_NONE) != ESP_OK) {
-    Serial.println("FEHLER: esp_wifi_set_channel() fehlgeschlagen");
+    Serial.println("FEHLER: Kanal setzen fehlgeschlagen");
   }
 
-  if (esp_wifi_set_ps(WIFI_PS_NONE) != ESP_OK) {
-    Serial.println("FEHLER: esp_wifi_set_ps(WIFI_PS_NONE) fehlgeschlagen");
-  }
+  // WICHTIG: Wenn du im Sender WIFI_PROTOCOL_11B nutzt, musst du es HIER auch setzen!
+  // Ich empfehle aber, es auf BEIDEN Seiten wegzulassen. Falls nötig einkommentieren:
+  // esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B);
 
   if (esp_now_init() != ESP_OK) {
     Serial.println("FEHLER: esp_now_init() fehlgeschlagen");
     ESP.restart();
   }
 
-  if (esp_now_register_recv_cb(onDataRecv) != ESP_OK) {
-    Serial.println("FEHLER: esp_now_register_recv_cb() fehlgeschlagen");
-    ESP.restart();
-  }
-
-  Serial.println("ESP-NOW Empfaenger initialisiert.");
+  esp_now_register_recv_cb(onDataRecv);
+  Serial.println("ESP-NOW Empfänger initialisiert.");
 }
 
 void setup() {
   Serial.begin(115200);
   delay(1000);
-  Serial.println();
-  Serial.println("Starte ESP32 ESP-NOW Broadcast-Receiver...");
+  Serial.println("Starte Empfänger...");
   initEspNowReceiver();
 }
 
