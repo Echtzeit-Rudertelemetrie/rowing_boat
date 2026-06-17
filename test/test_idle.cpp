@@ -1,11 +1,10 @@
 #include <Arduino.h>
-#include "dms.h"
 
 void setup() {
     Serial.begin(115200);
-    dms_init();
+    Serial.println("Idle - waiting for commands");
 }
 
 void loop() {
-    dms_update();
+    delay(1000);
 }
