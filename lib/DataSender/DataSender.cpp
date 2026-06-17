@@ -31,7 +31,7 @@ void DataSender::espnow_init_sender(std::uint8_t /*board_id*/, const std::uint8_
 
     esp_wifi_set_max_tx_power(78); //Setzt die maximale Sendeleistung 
     esp_wifi_set_channel(ESPNOW_CHANNEL, WIFI_SECOND_CHAN_NONE); //Channel auf channel 11 setzen
-    esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B); //Verbindungsprotokoll setzen (nicht ändern)
+    //esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B); //Verbindungsprotokoll setzen (nicht ändern)
 
     if (esp_now_init() != ESP_OK) { //initialisiert den ESP-Stack
         Serial.println("FEHLER: esp_now_init");
