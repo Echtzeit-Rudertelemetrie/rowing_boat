@@ -14,8 +14,13 @@ DataSender::DataSender(MeasurementData& data)
 : data_(&data) {
 }
 
-void onDataSent(const uint8_t* /*mac*/, esp_now_send_status_t status) {
-    (void)status;
+void onDataSent(const uint8_t* mac, esp_now_send_status_t status) {
+    Serial.print("ESP-NOW Sende-Status: ");
+    if (status == ESP_NOW_SEND_SUCCESS) {
+        Serial.println("Erfolgreich gesendet (ACK erhalten oder Broadcast rausgegangen)");
+    } else {
+        Serial.println("FEHLER: Zustellung fehlgeschlagen (Empfänger nicht erreichbar/falscher Kanal)");
+    }
 }
 
 uint8_t* espnow_get_local_mac() {
@@ -30,7 +35,9 @@ void DataSender::espnow_init_sender(std::uint8_t /*board_id*/, const std::uint8_
     WiFi.disconnect(); //Kein Wlan an
 
     esp_wifi_set_max_tx_power(78); //Setzt die maximale Sendeleistung 
+    esp_wifi_set_promiscuous(true);
     esp_wifi_set_channel(ESPNOW_CHANNEL, WIFI_SECOND_CHAN_NONE); //Channel auf channel 11 setzen
+    esp_wifi_set_promiscuous(false);
     //esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B); //Verbindungsprotokoll setzen (nicht ändern)
 
     if (esp_now_init() != ESP_OK) { //initialisiert den ESP-Stack
