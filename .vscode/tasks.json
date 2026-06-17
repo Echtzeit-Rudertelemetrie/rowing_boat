@@ -1,0 +1,33 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "PIO Build Current",
+      "type": "shell",
+      "command": "/Users/dominikmuller/.platformio/penv/bin/pio",
+      "args": [
+        "run",
+        "-d",
+        "${fileWorkspaceFolder}"
+      ],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "PIO Upload Current",
+      "type": "shell",
+      "command": "/Users/dominikmuller/.platformio/penv/bin/pio",
+      "args": [
+        "run",
+        "-d",
+        "${fileWorkspaceFolder}",
+        "-t",
+        "upload"
+      ],
+      "problemMatcher": []
+    }
+  ]
+}
