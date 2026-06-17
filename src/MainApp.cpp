@@ -12,6 +12,8 @@ void MainApp::begin() {
   Serial.begin(115200);
   delay(200);
 
+  Serial.println("Begin");
+
   sensor_.begin();
 
   // Die Queue sollte groß genug sein, damit kurze Lastspitzen nicht sofort Events verlieren.
@@ -33,6 +35,10 @@ void MainApp::begin() {
 }
 
 void MainApp::run() {
+  while(1)
+  {
+    Serial.println("in loop");
+  }
   for (;;) {
     EventType event;
 
@@ -69,6 +75,7 @@ void MainApp::run() {
 }*/
 
 void MainApp::handleEvent(EventType event) {
+    Serial.printf("In Event");
     switch (event) {
         case EventType::ReadSensor1: {
             latest_.forceSensor = sensor_.ReadForce();
