@@ -74,11 +74,11 @@ static void initEspNowReceiver() {
   WiFi.mode(WIFI_STA);
   WiFi.disconnect();
   WiFi.setSleep(false); // Sehr gut für ESP-NOW Empfang
-
+esp_wifi_set_promiscuous(true);
   if (esp_wifi_set_channel(ESPNOW_CHANNEL, WIFI_SECOND_CHAN_NONE) != ESP_OK) {
     Serial.println("FEHLER: Kanal setzen fehlgeschlagen");
   }
-
+esp_wifi_set_promiscuous(false);
   // WICHTIG: Wenn du im Sender WIFI_PROTOCOL_11B nutzt, musst du es HIER auch setzen!
   // Ich empfehle aber, es auf BEIDEN Seiten wegzulassen. Falls nötig einkommentieren:
   // esp_wifi_set_protocol(WIFI_IF_STA, WIFI_PROTOCOL_11B);
