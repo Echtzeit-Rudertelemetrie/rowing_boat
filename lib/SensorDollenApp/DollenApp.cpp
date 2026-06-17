@@ -12,8 +12,10 @@ void DollenApp::begin() {
   Serial.begin(115200);
   delay(200);
 
-  Serial.println("Begin");
+  Serial.printf("Begin (reset_reason=%d)\n", (int)esp_reset_reason());
 
+  // Sensor-Hardware wird hier initialisiert (NICHT mehr im Konstruktor),
+  // damit Serial bereits laeuft und fehlende Hardware den Boot nicht blockiert.
   sensor_.begin();
 
   // Die Queue sollte groß genug sein, damit kurze Lastspitzen nicht sofort Events verlieren.

@@ -34,26 +34,38 @@ AngleReader::AngleReader()
       q(makeIdentityQuat()),
       initialized(false),
       lastUpdateUs(0) {
+    // KEIN Hardware-Zugriff im Konstruktor! Der laeuft als globale Static-Init
+    // noch vor setup()/Serial.begin(). I2C-Init passiert in begin().
+}
+
+bool AngleReader::begin() {
+    bool ok = true;
 
     if (!mpu.begin())
     {
         Serial.println("Failed to find MPU6050 chip");
-        while (1)
-            delay(10);
+        ok = false;
     }
-    mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
-    mpu.setGyroRange(MPU6050_RANGE_500_DEG);
-    mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
+    else
+    {
+        mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
+        mpu.setGyroRange(MPU6050_RANGE_500_DEG);
+        mpu.setFilterBandwidth(MPU6050_BAND_21_HZ);
+    }
 
     // ── MMC56X3 Init ──────────────────────────────────────────────────────────
     if (!mmc.begin())
     {
         Serial.println("Failed to find MMC56X3 chip");
-        while (1)
-            delay(100);
+        ok = false;
     }
-    mmc.setDataRate(1000000UL / SAMPLE_INTERVAL_US);
+    else
+    {
+        mmc.setDataRate(1000000UL / SAMPLE_INTERVAL_US);
     }
+
+    return ok;
+}
 
 // ── Hilfsfunktion: Magnetometer kalibrieren ──────────────────────────────────
 void AngleReader::calibrateMag(const float raw[3], float out[3]) {
