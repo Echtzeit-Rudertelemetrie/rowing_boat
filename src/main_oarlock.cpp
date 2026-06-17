@@ -1,6 +1,26 @@
 #include <Arduino.h>
 #include <SPI.h>
 
+// ─────────────────────────────────────────────────────────────────────────────
+// prod_32mini: Winkelmessung + DMS
+//
+// Winkelquelle umschalten:
+//   0 = Gyro-EKF (MPU6050 + MMC5603 Magnetometer, I2C)
+//   1 = Hall-Sensor (AS5600, I2C)
+// ─────────────────────────────────────────────────────────────────────────────
+#define USE_HALL_SENSOR 0
+
+#if USE_HALL_SENSOR
+#include <Wire.h>
+#include "hall_angle.h"
+static HallAngle hallSensor;
+#else
+#include "gyro.h"
+#endif
+
+// ─────────────────────────────────────────────────────────────────────────────
+// AD7124-8 (DMS) — Hardware-SPI, identisch zu src/main.cpp
+// ─────────────────────────────────────────────────────────────────────────────
 #define PIN_CS 5
 #define PIN_MOSI 23
 #define PIN_MISO 19
@@ -86,7 +106,6 @@ void ad7124_init() {
   writeReg(REG_CH0, ch0, 2);
 
   delay(100);
-  Serial.println("zeit_ms,raw,spannung_uV,kraft");
 }
 
 float movingAvg(float v) {
@@ -97,14 +116,7 @@ float movingAvg(float v) {
   return avg_sum / AVG_SIZE;
 }
 
-void setup() {
-  Serial.begin(115200);
-  delay(500);
-  Serial.println("\n=== AD7124-8 DMS Messung ===");
-  ad7124_init();
-}
-
-void loop() {
+void dmsUpdate() {
   if (Serial.available()) {
     char c = Serial.read();
     if (c=='t' || c=='T') {
@@ -115,10 +127,7 @@ void loop() {
   }
 
   uint32_t status = readReg(REG_STATUS, 1);
-  if (status & 0x80) {
-    delay(5);
-    return;
-  }
+  if (status & 0x80) return; // kein neues Sample bereit
 
   uint32_t data = readReg(REG_DATA, 3);
   int32_t raw = (int32_t)data - 0x800000;
@@ -136,10 +145,45 @@ void loop() {
   static uint32_t last = 0;
   if (millis() - last >= 100) {
     last = millis();
-    //Serial.printf("%lu,%ld,%.2f,%.2f\n", last, raw, uV_avg, kraft);
-    Serial.printf(">last:%lu\n", last);
-    Serial.printf(">raw:%ld\n", raw);
-    Serial.printf(">uV_avg:%.2f\n", uV_avg);
-    Serial.printf(">kraft:%.2f\n", kraft);
+    Serial.printf(">dms/spannung_uV: %.2f\n", uV_avg);
+    Serial.printf(">dms/kraft: %.2f\n", kraft);
   }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Winkelmessung
+// ─────────────────────────────────────────────────────────────────────────────
+void angleUpdate() {
+#if USE_HALL_SENSOR
+  if (hallSensor.update()) {
+    Serial.printf(">as5600/angle_raw: %.2f\n",       hallSensor.getAngleRaw());
+    Serial.printf(">as5600/angle_with_calc: %.2f\n", hallSensor.getAngleCalc());
+  }
+#else
+  sampleAndPlot(0.0f);
+#endif
+}
+
+void setup() {
+  Serial.begin(115200);
+  delay(500);
+  Serial.println("\n=== prod_32mini: Winkel + DMS ===");
+
+#if USE_HALL_SENSOR
+  Wire.begin();
+  Wire.setClock(400000);
+  delay(100);
+  hallSensor.begin();
+#else
+  setupGyro();
+  calibrateGyro();
+  delay(100);
+#endif
+
+  ad7124_init();
+}
+
+void loop() {
+  angleUpdate();
+  dmsUpdate();
 }
