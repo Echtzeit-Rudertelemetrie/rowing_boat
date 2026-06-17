@@ -1,11 +1,16 @@
 /***
- * Standalone AD7124-8 DMS bench sketch (not part of the 3-MCU prod chain).
+ * ESP-NOW sender — per-oarlock unit (ESP32-S3 mini, env: prod_oarlock)
  *
- * Byte-for-byte duplicate of main_espNow_sender.cpp's DMS code, kept as a
- * minimal load-cell test. Not referenced by any prod_* env; only the
- * compile-everything envs (prod_nodemcu-32s / prod_esp32dev) would pull it
- * in, which then clashes with the other main_*.cpp setup()/loop().
- * Safe to delete once the sender is the canonical DMS path.
+ * Role in the boat:
+ *   One unit per oarlock. Measures oar angle (gyro-EKF or Hall-sensor) and
+ *   force (DMS load cell via AD7124-8), batches them into a RowingPacket
+ *   {board_id, seq, force[32], angle[32]} and sends it via ESP-NOW to the
+ *   receiver/aggregator. Packet layout: lib/ESPNOW/espnow.h.
+ *
+ * Status (2026-06-17):
+ *   Done  - AD7124-8 DMS read + moving average (>last, >raw, >uV_avg, >kraft).
+ *   TODO  - angle source, RowingPacket batching, espnow_init_sender() +
+ *           espnow_send(). No radio traffic yet.
  */
 
 #include <Arduino.h>

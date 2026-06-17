@@ -8,8 +8,12 @@ mag   = mag(: );
 
 
 % Referenzvektoren
-accel_ref = [-1; -1; 1];
-mag_ref   = [0.44; 0.03; 0.9];  % oder aus erster Messung setzen
+
+accel_ref = [0; 0; 1];
+
+
+
+mag_ref   = [0.00; 0; 0.00];  % oder aus erster Messung setzen
 
 
 persistent P

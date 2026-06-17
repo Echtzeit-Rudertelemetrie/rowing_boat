@@ -2,11 +2,16 @@ close all
 clear
 clc
 delete(serialportfind)
+clear ekf_update
 
 
 
 fs = 100;
-s = serialport("/dev/cu.usbserial-110", 115200);
+try
+    s = serialport("/dev/cu.usbserial-10", 115200);
+catch
+    s = serialport("/dev/cu.usbserial-110", 115200);
+end
 configureTerminator(s, "LF");
 flush(s);
 
@@ -22,12 +27,13 @@ mag   = zeros(1,3);
 %b = [30.7073, -19.2218, -46.3756];
 %b = [42.9229, 101.1279, -5.0567];
 %b = [1.0e+03 * -1.4673, 1.0e+03 * -0.0265, 1.0e+03 * 0.3888]; %x and y swapped
-%A = eye(3);
+A = eye(3);
+b = [1.0e+03 * 2.1045    0.8154    0.8486];
 
-A = [1.0962         0         0
-         0    1.4670         0
-         0         0    0.6219];
-b = [-115.4853    6.6805  -14.4159];
+% A = [1.0962         0         0
+%     0    1.4670         0
+%     0         0    0.6219];
+% b = [-115.4853    6.6805  -14.4159];
 
 % Vor der while-Loop, ~100 Samples bei Stillstand sammeln
 gyro_bias = zeros(1,3);
@@ -102,40 +108,41 @@ while true
 
         dt = toc(t_last);
         t_last = tic;
-        % FUSE.SampleRate = 1/dt;  % echte Rate setzen
 
         %use calibration results
         mag_calibrated = (mag - b) * A;
         %mag_calibrated = mag;
 
-        fprintf("mag: %.2f %.2f %.2f\n", mag_ref_world(1), mag_ref_world(2), mag_ref_world(3));
+        % fprintf("mag: %.2f %.2f %.2f\n", mag_ref_world(1), mag_ref_world(2), mag_ref_world(3));
 
         % vollständiges Sample → fusionieren
         %q = FUSE((accel - acce_bias), (gyro - gyro_bias) * (pi/180), mag_calibrated * 1e-6); % µT → T
-        
-        q = FUSE(accel, gyro, mag_calibrated); % µT → T
-        viewer.Orientation = q;
 
-% parts = compact(q);  % gibt [w, x, y, z] als 1×4 double zurück
-% fprintf("qout: %.4f %.4f %.4f %.4f\n", parts(1), parts(2), parts(3), parts(4));
-% 
-% eul = eulerd(q, 'ZYX', 'frame');  % [yaw, pitch, roll] in Grad
-% fprintf("Roll: %.2f°  Pitch: %.2f°  Yaw: %.2f°\n", eul(3), eul(2), eul(1));
+        % q = FUSE(accel, gyro, mag_calibrated); % µT → T
+        % viewer.Orientation = q;
+
+        % q_out = ahrs_ekf12(accel, gyro, mag_calibrated, dt);
+        % viewer.Orientation = quaternion(q_out(1),q_out(2),q_out(3),q_out(4));
+
+        % eul = eulerd(q, 'ZYX', 'frame');  % [yaw, pitch, roll] in Grad
+        % fprintf("Roll: %.2f°  Pitch: %.2f°  Yaw: %.2f°\n", eul(3), eul(2), eul(1));
 
         % q = ekf_update(q, -gyro, accel*9.81, mag_calibrated*1e-6, dt);
         % viewer.Orientation = quaternion(q(1), q(2), q(3), q(4));
-        % 
+        %
 
         % angles = eulerd(q1, 'ZYX', 'frame');
         % fprintf("Yaw: %.2f°  Pitch: %.2f°  Roll: %.2f°\n", angles(1), angles(2), angles(3));
 
 
-        %  q_out = ekf_update(q, gyro, accel, mag_calibrated, dt);
-        %  viewer.Orientation = quaternion(q_out(1), q_out(2), q_out(3), q_out(4));
-        % 
-        %  fprintf("qout: %.2f°\n",rad2deg(q_out(4)));
-        % % 
-        %  q = q_out;
+
+
+        q_out = ekf_update(q, gyro, accel, mag_calibrated, dt);
+        viewer.Orientation = quaternion(q_out(1), q_out(2), q_out(3), q_out(4));
+        % %
+        % %  fprintf("qout: %.2f°\n",rad2deg(q_out(4)));
+        % % %
+        q = q_out;
 
     end
     % fprintf("Accel: X=%.2f  Y=%.2f  Z=%.2f\n", accel(3), accel(2), accel(1));
