@@ -151,6 +151,10 @@
                 "-t",
                 "upload"
             ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
             "problemMatcher": []
         }
     ]
