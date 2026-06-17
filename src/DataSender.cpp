@@ -116,4 +116,6 @@ void DataSender::sendData() {
     }
 
     bufferIndex = 0;
+
+    Serial.print("Sending Data");
 }
