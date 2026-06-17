@@ -1,7 +1,7 @@
 #include <Arduino.h>
-#include "MainApp.h"
+#include "DollenApp.h"
 
-MainApp app;
+DollenApp app;
 
 void setup() {
   app.begin();

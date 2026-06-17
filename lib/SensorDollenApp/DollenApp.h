@@ -7,9 +7,9 @@
 #include "DataSender.h"
 #include "TimerManager.h"
 
-class MainApp {
+class DollenApp {
 public:
-  MainApp();
+  DollenApp();
   void begin();
   void run();
 

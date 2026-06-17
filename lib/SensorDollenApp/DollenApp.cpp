@@ -1,6 +1,6 @@
-#include "MainApp.h"
+#include "DollenApp.h"
 
-MainApp::MainApp()
+DollenApp::DollenApp()
 : latest_{}
 , eventQueue_{}
 , sensor_{}
@@ -8,7 +8,7 @@ MainApp::MainApp()
 , timer_(eventQueue_) {
 }
 
-void MainApp::begin() {
+void DollenApp::begin() {
   Serial.begin(115200);
   delay(200);
 
@@ -34,7 +34,7 @@ void MainApp::begin() {
   Serial.println("System gestartet.");
 }
 
-void MainApp::run() {
+void DollenApp::run() {
   while(1)
   {
     Serial.println("in loop");
@@ -74,7 +74,7 @@ void MainApp::run() {
   }
 }*/
 
-void MainApp::handleEvent(EventType event) {
+void DollenApp::handleEvent(EventType event) {
     Serial.printf("In Event");
     switch (event) {
         case EventType::ReadSensor1: {
