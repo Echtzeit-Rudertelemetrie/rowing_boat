@@ -1,0 +1,2 @@
+Ich möchte von einem ESP32-WROOM-32D DevKit-Klon (HW-394), 4 MB Flash, CH340 USB-zu-Seriell, USB-C, 38-Pin zu einem
+smartphone android oder IOS daten schicken. Zum testen sollen es erstmal zufällige daten sein. Es sollen 25600 bit pro sekunde gesendet werden diese bestehen aus 400 x 64 bit werten. Der esp soll mit bis zu 4 Smartphones verbunden werden können als insgesamt 25600 * 4 = 102400 bit / sekunde insgesamt. Das ganze soll über BLE laufen. Auf den Smartphones läuft eine Flutter app, es soll über flutter_blue_plus komuniziert werden.

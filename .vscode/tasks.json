@@ -14,7 +14,9 @@
             "label": "2) Flash Idle → USB2",
             "type": "shell",
             "command": "/home/eron/.platformio/penv/bin/platformio run -e test_idle -t upload --upload-port /dev/ttyUSB2",
-            "dependsOn": ["1) Flash Idle → USB1"],
+            "dependsOn": [
+                "1) Flash Idle → USB1"
+            ],
             "problemMatcher": [],
             "presentation": {
                 "reveal": "never"
@@ -24,7 +26,9 @@
             "label": "3) Flash Receiver → USB0",
             "type": "shell",
             "command": "/home/eron/.platformio/penv/bin/platformio run -e test_receiver -t upload --upload-port /dev/ttyUSB0",
-            "dependsOn": ["2) Flash Idle → USB2"],
+            "dependsOn": [
+                "2) Flash Idle → USB2"
+            ],
             "problemMatcher": [],
             "presentation": {
                 "reveal": "never"
@@ -34,7 +38,9 @@
             "label": "4) Flash Sender1 → USB1",
             "type": "shell",
             "command": "/home/eron/.platformio/penv/bin/platformio run -e test_sender -t upload --upload-port /dev/ttyUSB1",
-            "dependsOn": ["3) Flash Receiver → USB0"],
+            "dependsOn": [
+                "3) Flash Receiver → USB0"
+            ],
             "problemMatcher": [],
             "presentation": {
                 "reveal": "never"
@@ -44,7 +50,9 @@
             "label": "5) Flash Sender2 → USB2",
             "type": "shell",
             "command": "/home/eron/.platformio/penv/bin/platformio run -e test_sender -t upload --upload-port /dev/ttyUSB2",
-            "dependsOn": ["4) Flash Sender1 → USB1"],
+            "dependsOn": [
+                "4) Flash Sender1 → USB1"
+            ],
             "problemMatcher": [],
             "presentation": {
                 "reveal": "never"
@@ -116,6 +124,34 @@
             "presentation": {
                 "reveal": "always"
             }
+        },
+        {
+            "label": "PIO Build Current",
+            "type": "shell",
+            "command": "/Users/dominikmuller/.platformio/penv/bin/pio",
+            "args": [
+                "run",
+                "-d",
+                "${fileWorkspaceFolder}"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "problemMatcher": []
+        },
+        {
+            "label": "PIO Upload Current",
+            "type": "shell",
+            "command": "/Users/dominikmuller/.platformio/penv/bin/pio",
+            "args": [
+                "run",
+                "-d",
+                "${fileWorkspaceFolder}",
+                "-t",
+                "upload"
+            ],
+            "problemMatcher": []
         }
     ]
 }
