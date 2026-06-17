@@ -29,7 +29,7 @@ uint8_t* espnow_get_local_mac() {
     return mac;
 }
 
-void DataSender::espnow_init_sender(std::uint8_t /*board_id*/, const std::uint8_t* peerMac) {
+void DataSender::espnow_init_sender() {
     //s_board_id_sender = board_id; -> brauch ich das?
     WiFi.mode(WIFI_STA); //-> Stationary Funkteilnehmer und nicht access point
     WiFi.disconnect(); //Kein Wlan an
@@ -48,14 +48,14 @@ void DataSender::espnow_init_sender(std::uint8_t /*board_id*/, const std::uint8_
 
     esp_now_peer_info_t peer = {}; // Erstellt eine Peer-Konfigurationsstruktur. 
     //Ein „Peer“ ist bei ESP-NOW der Gegenknoten, den man ansprechen will.
-    memcpy(peer.peer_addr, peerMac, 6);
+    memcpy(peer.peer_addr, BROADCAST_MAC, 6);
     peer.channel = ESPNOW_CHANNEL;
     peer.encrypt = false;
     peer.ifidx = WIFI_IF_STA; //passt das?
 
     if (esp_now_add_peer(&peer) == ESP_OK) { //fügt dem Empfänger als Peer hinzu
         peerAdded = true;
-        memcpy(hubMac, peerMac, 6);
+        memcpy(hubMac, BROADCAST_MAC, 6);
     } else {
         Serial.println("FEHLER: esp_now_add_peer");
     }
@@ -130,6 +130,10 @@ void DataSender::sendData() {
         for (std::uint8_t retry = 0; retry < PACKET_RETRIES; ++retry) {
             esp_now_send(hubMac, reinterpret_cast<const std::uint8_t*>(&pkt), sizeof(pkt));
         }
+    }
+    else
+    {
+        Serial.println("Peer was not added");
     }
 
     Serial.println("Sending Data");

@@ -18,6 +18,8 @@ void DollenApp::begin() {
   // damit Serial bereits laeuft und fehlende Hardware den Boot nicht blockiert.
   sensor_.begin();
 
+  sender_.espnow_init_sender();
+
   // Die Queue sollte groß genug sein, damit kurze Lastspitzen nicht sofort Events verlieren.
   if (!eventQueue_.begin(64)) {
     Serial.println("EventQueue konnte nicht erstellt werden.");

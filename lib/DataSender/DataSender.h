@@ -21,7 +21,7 @@ class DataSender {
 public:
     explicit DataSender(MeasurementData& data);
 
-    void espnow_init_sender(std::uint8_t /*board_id*/, const std::uint8_t* peerMac);
+    void espnow_init_sender();
     void sendData();
 
 private:
