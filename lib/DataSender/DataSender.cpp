@@ -18,6 +18,12 @@ void onDataSent(const uint8_t* /*mac*/, esp_now_send_status_t status) {
     (void)status;
 }
 
+uint8_t* espnow_get_local_mac() {
+    static uint8_t mac[6]; //-> durch static bleibt adresse auch im nachhinein noch gültig (nachem function fertig)
+    WiFi.macAddress(mac);
+    return mac;
+}
+
 void DataSender::espnow_init_sender(std::uint8_t /*board_id*/, const std::uint8_t* peerMac) {
     //s_board_id_sender = board_id; -> brauch ich das?
     WiFi.mode(WIFI_STA); //-> Stationary Funkteilnehmer und nicht access point
@@ -119,7 +125,52 @@ void DataSender::sendData() {
         }
     }
 
-    bufferIndex = 0;
+    Serial.println("Sending Data");
+      Serial.println("=== Measurement Pack ===");
 
-    Serial.print("Sending Data");
+  // 1. Ausgabe der Force-Werte
+  Serial.print("Force Values: [");
+  for (int i = 0; i < PACKET_VALUES; i++) {
+    Serial.print(pkt.force_values[i]);
+    if (i < PACKET_VALUES - 1) {
+      Serial.print(", ");
+    }
+  }
+  Serial.println("]");
+
+  // 2. Ausgabe der Angle-Werte
+  Serial.print("Angle Values: [");
+  for (int i = 0; i < PACKET_VALUES; i++) {
+    Serial.print(pkt.angle_values[i]);
+    if (i < PACKET_VALUES - 1) {
+      Serial.print(", ");
+    }
+  }
+  Serial.println("]");
+
+  // 3. Ausgabe der ID und Sequenznummer
+  Serial.print("Raw ID & Seq: ");
+  Serial.println(pkt.espIdAndSeqenceNum);
+
+  // Optional: Falls ID und Sequenznummer als zwei 16-Bit-Werte in der 
+  // 32-Bit-Variable verpackt sind, können sie so extrahiert werden:
+  uint16_t espId = (pkt.espIdAndSeqenceNum >> 29) & 0xFFFF;
+  uint16_t seqNum = pkt.espIdAndSeqenceNum & 0xFFFF;
+  
+  Serial.print(" -> Extracted ESP-ID: ");
+  Serial.println(espId);
+  Serial.print(" -> Extracted Sequence: ");
+  Serial.println(seqNum);
+  
+  Serial.println("========================");
+  Serial.println("Mac Adress");
+    uint8_t* mac = espnow_get_local_mac();
+    
+    Serial.printf("MAC-Adresse: %02X:%02X:%02X:%02X:%02X:%02X\n", 
+                  mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+
+    Serial.println();
+    Serial.println();
+
+    bufferIndex = 0;
 }

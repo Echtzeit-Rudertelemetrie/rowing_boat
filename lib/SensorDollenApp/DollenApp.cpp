@@ -37,10 +37,6 @@ void DollenApp::begin() {
 }
 
 void DollenApp::run() {
-  while(1)
-  {
-    Serial.println("in loop");
-  }
   for (;;) {
     EventType event;
 
@@ -52,32 +48,31 @@ void DollenApp::run() {
   }
 }
 
-/*void MainApp::handleEvent(EventType event) {
+void DollenApp::handleEvent(EventType event) {
   switch (event) {
-    case EventType::ReadSensor1:
-        unsigned long ms = millis();
+    case EventType::ReadSensor1: {
+      //unsigned long ms = millis();
 
-        Serial.printf("Uptime: %02lu\n",
-                    ms);
-      latest_.sensor1 = sensor_.ReadSensor1();
+      //Serial.printf("Uptime: %02lu\n", ms);
+      latest_.forceSensor = sensor_.ReadForce();
       break;
+    }
 
     case EventType::ReadSensor2:
-      latest_.sensor2 = sensor_.ReadSensor2();
+      latest_.degreeSensor = sensor_.ReadAngle();
       break;
 
-    case EventType::SendData:
+    case EventType::SendData: {
       sender_.sendData();
-        unsigned long ims = millis();
+      //unsigned long ims = millis();
 
-        Serial.printf("Uptime: %02lu\n",
-                    ims);
+      //Serial.printf("Uptime: %02lu\n", ims);
       break;
+    }
   }
-}*/
+}
 
-void DollenApp::handleEvent(EventType event) {
-    Serial.printf("In Event");
+/*void DollenApp::handleEvent(EventType event) {
     switch (event) {
         case EventType::ReadSensor1: {
             latest_.forceSensor = sensor_.ReadForce();
@@ -96,5 +91,5 @@ void DollenApp::handleEvent(EventType event) {
 
         default:
             break;
-    }
-}
+    } 
+} */
