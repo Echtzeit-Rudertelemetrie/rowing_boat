@@ -1,3 +1,20 @@
+/***
+ * ESP-NOW receiver / aggregator (ESP32 nodemcu-32s, env: prod_aggregator)
+ *
+ * Role in the boat:
+ *   Receives RowingPackets from 2-8 oarlock senders via ESP-NOW (lib/ESPNOW),
+ *   then forwards the aggregated data over UART (TX) to the BLE-sender MCU.
+ *
+ * Status (2026-06-17):
+ *   The code below is still a per-oarlock angle + DMS measurement loop
+ *   (gyro-EKF by default, Hall via USE_HALL_SENSOR) printing to Serial/teleplot
+ *   (>dms/..., >as5600/...). It does NOT yet receive over ESP-NOW or forward
+ *   over UART.
+ *   TODO  - espnow_init_receiver(), unpack RowingPacket in onDataRecv(), UART
+ *           forward to the BLE sender. (This measurement loop most likely
+ *           belongs in main_espNow_sender.cpp.)
+ */
+
 #include <Arduino.h>
 #include <SPI.h>
 

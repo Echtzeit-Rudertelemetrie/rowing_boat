@@ -1,3 +1,13 @@
+/***
+ * Standalone AD7124-8 DMS bench sketch (not part of the 3-MCU prod chain).
+ *
+ * Byte-for-byte duplicate of main_espNow_sender.cpp's DMS code, kept as a
+ * minimal load-cell test. Not referenced by any prod_* env; only the
+ * compile-everything envs (prod_nodemcu-32s / prod_esp32dev) would pull it
+ * in, which then clashes with the other main_*.cpp setup()/loop().
+ * Safe to delete once the sender is the canonical DMS path.
+ */
+
 #include <Arduino.h>
 #include <SPI.h>
 
