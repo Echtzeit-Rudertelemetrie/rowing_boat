@@ -12,7 +12,7 @@ constexpr std::uint8_t PACKET_RETRIES = 3;
 constexpr std::uint8_t ESPNOW_CHANNEL = 11;
 constexpr std::uint8_t ESP_ID = 1;
 
-constexpr float FORCE_MIN_N   = 0.0f;
+constexpr float FORCE_MIN_N   = 0.0f; //TODO: setup sinnvolle Werte hierfür
 constexpr float FORCE_MAX_N   = 1000.0f;
 constexpr float ANGLE_MIN_DEG = -90.0f;
 constexpr float ANGLE_MAX_DEG =  90.0f;

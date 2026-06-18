@@ -6,6 +6,6 @@ ForceReader::ForceReader() {
 }
 
 float ForceReader::sampleForce() {
-    // echten Code hier
+    // TODO: Janis echten Code hier
     return 0.0f;
 }
