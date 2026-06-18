@@ -1,6 +1,6 @@
-#include "DollenApp.h"
+#include "espNow_sender_App.h"
 
-DollenApp::DollenApp()
+EspNow_sender_App::EspNow_sender_App()
 : latest_{}
 , eventQueue_{}
 , sensor_{}
@@ -8,7 +8,7 @@ DollenApp::DollenApp()
 , timer_(eventQueue_) {
 }
 
-void DollenApp::begin() {
+void EspNow_sender_App::begin() {
   Serial.begin(115200);
   delay(200);
 
@@ -38,7 +38,7 @@ void DollenApp::begin() {
   Serial.println("System gestartet.");
 }
 
-void DollenApp::run() {
+void EspNow_sender_App::run() {
   for (;;) {
     EventType event;
 
@@ -50,7 +50,7 @@ void DollenApp::run() {
   }
 }
 
-void DollenApp::handleEvent(EventType event) {
+void EspNow_sender_App::handleEvent(EventType event) {
   switch (event) {
     case EventType::ReadSensor1: {
       //unsigned long ms = millis();

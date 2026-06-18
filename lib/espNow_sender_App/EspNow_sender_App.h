@@ -7,9 +7,9 @@
 #include "DataSender.h"
 #include "TimerManager.h"
 
-class DollenApp {
+class EspNow_sender_App {
 public:
-  DollenApp();
+  EspNow_sender_App();
   void begin();
   void run();
 

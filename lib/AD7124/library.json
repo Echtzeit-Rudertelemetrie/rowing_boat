@@ -1,5 +1,0 @@
-{
-  "name": "AD7124",
-  "version": "1.0.0",
-  "description": "Minimal AD7124-8 register-level driver for ESP32"
-}

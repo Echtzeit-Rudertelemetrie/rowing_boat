@@ -1,7 +1,7 @@
 #include <Arduino.h>
-#include "DollenApp.h"
+#include "EspNow_sender_App.h"
 
-DollenApp app;
+EspNow_sender_App app;
 
 void setup() {
   app.begin();
