@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 /***
  * ESP-NOW sender — per-oarlock unit (ESP32-S3 mini, env: prod_oarlock)
  *
@@ -157,4 +158,17 @@ void loop() {
     Serial.printf(">uV_avg:%.2f\n", uV_avg);
     Serial.printf(">kraft:%.2f\n", kraft);
   }
+=======
+#include <Arduino.h>
+#include "EspNow_sender_App.h"
+
+EspNow_sender_App app;
+
+void setup() {
+  app.begin();
+}
+
+void loop() {
+  app.run();
+>>>>>>> alles_in_projekten
 }
