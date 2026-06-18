@@ -3,7 +3,7 @@
 
 // Konfiguration ESP-NOW
 static constexpr uint8_t ESPNOW_CHANNEL = 11;
-static constexpr uint8_t PACKET_VALUES = 10;
+static constexpr uint8_t PACKET_VALUES = 20;
 
 // Konfiguration UART
 static constexpr int UART2_RX_PIN = 16;
