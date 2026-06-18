@@ -1,3 +1,21 @@
+## AKTUELLE Verdrahtung: AD7124 am ESP32-S3-Zero (FSPI)
+
+| AD7124 (PMOD) | ESP32-S3-Zero |
+|---------------|---------------|
+| CS            | GPIO10        |
+| MOSI / DIN    | GPIO11        |
+| SCK           | GPIO12        |
+| MISO / DOUT   | GPIO13        |
+| GND           | GND           |
+| 3V3           | 3V3           |
+
+Achtung: GPIO19/20 sind beim S3 das native USB und duerfen NICHT belegt werden.
+SPI-Mode 3 (CPOL=1, CPHA=1), 1 MHz. Konfiguration im Code: lib/DMS/AD7124/ad7124.cpp
+
+---
+
+## ALT (historisch): AD7124 am klassischen ESP32 -- wird nicht mehr genutzt
+
 Entities:
 
 Controller: AZ-Delivery ESP32 Dev Kit C V4 (Foto anbei)
