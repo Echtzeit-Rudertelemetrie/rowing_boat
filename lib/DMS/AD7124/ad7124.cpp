@@ -27,8 +27,16 @@ static SPIClass *spi = new SPIClass(FSPI);
 
 static const float VREF = 3.3f;
 static const float PGA  = 128.0f;
-static const float FS   = 8388608.0f;
+static const float FS   = 8388608.0f;   // ADC-Vollausschlag (2^23)
 static const uint16_t AVG_SIZE = 16;
+
+// ==================== DATENRATE ====================
+// Gewuenschte Messungen pro Sekunde. Hier aendern, um die Rate umzustellen.
+// Erlaubt sind ca. 9 .. 19200 SPS (Full Power, Sinc4); FS muss 1..2047 bleiben.
+static const uint16_t SAMPLES_PER_SECOND = 200;
+
+// Interner AD7124-Takt im Full-Power-Mode (614,4 kHz).
+static const float AD7124_CLK_HZ = 614400.0f;
 
 static float tara_uV = 0;
 static float avg_buf[AVG_SIZE] = {0};
@@ -89,7 +97,18 @@ void ad7124_init() {
 
   writeReg(REG_ADC_CTRL, 0x0180, 2);
   writeReg(REG_CONFIG0, 0x087F, 2);
-  writeReg(REG_FILTER0, 0x060180, 3);
+
+  // Datenrate aus SAMPLES_PER_SECOND ableiten: fDATA = fCLK / (32 * FS)
+  // -> FS = fCLK / (32 * fDATA). FS belegt die unteren 11 Bit von FILTER0,
+  //    der Rest (0x060000) waehlt den Sinc4-Filter.
+  uint16_t fs_word = (uint16_t)(AD7124_CLK_HZ / (32.0f * SAMPLES_PER_SECOND) + 0.5f);
+  if (fs_word < 1)    fs_word = 1;
+  if (fs_word > 2047) fs_word = 2047;
+  uint32_t filter0 = 0x060000 | (fs_word & 0x07FF);
+  writeReg(REG_FILTER0, filter0, 3);
+  Serial.printf("# AD7124: FS=%u -> %.1f SPS\n",
+                fs_word, AD7124_CLK_HZ / (32.0f * fs_word));
+
   writeReg(REG_CH0, 0x8001, 2);
 
   delay(100);
