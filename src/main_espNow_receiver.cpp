@@ -38,6 +38,17 @@ void loop() {
         // 2. Paket unverändert via UART2 an den XIAO weiterleiten
         uartBridge.forwardPacket(incomingPack);
     }
+    else {
+        delay(45);
+        for(int i = 0; i < PACKET_VALUES; i++)
+        {
+            incomingPack.angle_values[i] = (uint16_t) i;
+            incomingPack.force_values[i] = (uint16_t) i;
+        }
+        incomingPack.espIdAndSeqenceNum = (uint32_t) 764874;
+
+        uartBridge.forwardPacket(incomingPack);
+    }
 
     // 3. (Optional) Schauen, ob der XIAO etwas zurückgesendet hat (Diagnose)
     uartBridge.checkIncoming();

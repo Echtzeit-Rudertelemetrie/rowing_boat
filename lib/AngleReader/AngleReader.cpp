@@ -41,7 +41,7 @@ AngleReader::AngleReader()
 bool AngleReader::begin() {
     bool ok = true;
 
-    if (!mpu.begin())
+    if (!mpu.begin(SDA, SCL))
     {
         Serial.println("Failed to find MPU6050 chip");
         ok = false;
@@ -54,7 +54,7 @@ bool AngleReader::begin() {
     }
 
     // ── MMC56X3 Init ──────────────────────────────────────────────────────────
-    if (!mmc.begin())
+    if (!mmc.begin(SDA, SCL))
     {
         Serial.println("Failed to find MMC56X3 chip");
         ok = false;
