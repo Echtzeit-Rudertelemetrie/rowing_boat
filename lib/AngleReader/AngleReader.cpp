@@ -2,7 +2,6 @@
 // AngleReader.cpp
 // ─────────────────────────────────────────────────────────────────────────────
 #include "AngleReader.h"
-#include "gyro.h"
 #include <Adafruit_MMC56x3.h>
 #include <Adafruit_MPU6050.h>
 
@@ -39,9 +38,11 @@ AngleReader::AngleReader()
 }
 
 bool AngleReader::begin() {
+    Wire.begin(SDA, SCL);
+
     bool ok = true;
 
-    if (!mpu.begin(SDA, SCL))
+    if (!mpu.begin())
     {
         Serial.println("Failed to find MPU6050 chip");
         ok = false;
@@ -54,7 +55,7 @@ bool AngleReader::begin() {
     }
 
     // ── MMC56X3 Init ──────────────────────────────────────────────────────────
-    if (!mmc.begin(SDA, SCL))
+    if (!mmc.begin())
     {
         Serial.println("Failed to find MMC56X3 chip");
         ok = false;

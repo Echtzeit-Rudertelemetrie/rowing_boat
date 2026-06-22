@@ -9,7 +9,6 @@
 #include "AppTypes.h"
 
 constexpr std::uint8_t PACKET_RETRIES = 3;
-constexpr std::uint8_t ESPNOW_CHANNEL = 11;
 constexpr std::uint8_t ESP_ID = 1;
 
 constexpr float FORCE_MIN_N   = 0.0f; //TODO: setup sinnvolle Werte hierfür
