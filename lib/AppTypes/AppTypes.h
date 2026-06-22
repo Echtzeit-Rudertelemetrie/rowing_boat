@@ -12,6 +12,9 @@ static constexpr int UART2_RX_PIN = 16;
 static constexpr int UART2_TX_PIN = 17;
 static constexpr uint32_t UART_BAUD = 115200;
 
+#define SCL_PORT_MINI 7
+#define SDA_PORT_MINI 8
+
 enum class EventType : uint8_t {
   ReadSensor1,
   ReadSensor2,

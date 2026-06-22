@@ -3,9 +3,6 @@
 #include <Arduino.h>
 #include "orientation_ekf.h"
 
-#define SCL 6
-#define SDA 5
-
 class AngleReader {
 public:
     AngleReader();

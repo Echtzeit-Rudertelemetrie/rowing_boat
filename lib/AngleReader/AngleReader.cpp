@@ -38,8 +38,6 @@ AngleReader::AngleReader()
 }
 
 bool AngleReader::begin() {
-    Wire.begin(SDA, SCL);
-
     bool ok = true;
 
     if (!mpu.begin())

@@ -62,10 +62,12 @@ void EspNow_sender_App::handleEvent(EventType event) {
 
     case EventType::ReadSensor2:
       latest_.degreeSensor = sensor_.ReadAngle();
+      Serial.printf("Winkel: %.2lf", latest_.degreeSensor);
       break;
 
     case EventType::SendData: {
-      sender_.sendData();
+      //sender_.sendData();
+
       //unsigned long ims = millis();
 
       //Serial.printf("Uptime: %02lu\n", ims);
