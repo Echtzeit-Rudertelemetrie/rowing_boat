@@ -20,8 +20,8 @@ enum class EventType : uint8_t {
 
 typedef struct __attribute__((packed)) {
   uint32_t espIdAndSeqenceNum;
-  u_int16_t force_values[PACKET_VALUES];
-  u_int16_t angle_values[PACKET_VALUES];
+  uint16_t force_values[PACKET_VALUES];   // uint16_t (war u_int16_t: BSD-Typ, auf nRF52 nicht definiert)
+  uint16_t angle_values[PACKET_VALUES];
 } MeasurementPack;
 
 struct MeasurementData {
