@@ -1,8 +1,10 @@
 close all
 clear
-s = serialport("/dev/cu.usbserial-10", 115200);
+s = serialport("/dev/cu.usbmodem11301", 115200);
 configureTerminator(s, "LF");
 
+%s.Timeout = 10;
+%disp(readline(s));  % einmalig, isoliert testen
 
 num_points = 300;
 num_runs   = 5;  % Anzahl Iterationen
@@ -13,7 +15,7 @@ b_all = zeros(num_runs, 3);
 for run = 1:num_runs
     fprintf("Run %d/%d — Sensor rotieren, dann Enter drücken\n", run, num_runs);
 
-    %fprintf("i2c: %f", readline(s));
+    fprintf("i2c: %f", readline(s));
 
     pause();  % Warten bis bereit
 
