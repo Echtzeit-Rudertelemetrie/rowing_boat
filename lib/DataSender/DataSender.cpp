@@ -110,16 +110,16 @@ void DataSender::sendData() {
 
     ++packetSeq;
 
-    if ((ESP_ID & ~0x07u) != 0) {
-        // Fehlerbehandlung: ESP_ID ist außerhalb des 3-Bit-Bereichs
+    if ((ESP_ID & ~0x0Fu) != 0) {
+        // Fehlerbehandlung: ESP_ID ist außerhalb des 4-Bit-Bereichs (1..15)
     }
 
-    if ((packetSeq & ~0x1FFFFFFFu) != 0) {
-        // Fehlerbehandlung: Sequenznummer ist außerhalb des 29-Bit-Bereichs
+    if ((packetSeq & ~0x0FFFFFFFu) != 0) {
+        // Fehlerbehandlung: Sequenznummer ist außerhalb des 28-Bit-Bereichs
     }
 
     MeasurementPack pkt{};
-    pkt.espIdAndSeqenceNum = (static_cast<std::uint32_t>(ESP_ID) << 29) | packetSeq;
+    pkt.idAndSeq = (static_cast<std::uint32_t>(ESP_ID) << 28) | packetSeq;
 
     memcpy(pkt.force_values, forceBuffer, sizeof(forceBuffer));
     memcpy(pkt.angle_values, angleBuffer, sizeof(angleBuffer));
@@ -161,12 +161,11 @@ void DataSender::sendData() {
 
   // 3. Ausgabe der ID und Sequenznummer
   Serial.print("Raw ID & Seq: ");
-  Serial.println(pkt.espIdAndSeqenceNum);
+  Serial.println(pkt.idAndSeq);
 
-  // Optional: Falls ID und Sequenznummer als zwei 16-Bit-Werte in der 
-  // 32-Bit-Variable verpackt sind, können sie so extrahiert werden:
-  uint16_t espId = (pkt.espIdAndSeqenceNum >> 29) & 0xFFFF;
-  uint16_t seqNum = pkt.espIdAndSeqenceNum & 0xFFFF;
+  // id (obere 4 Bit) und Sequenznummer (untere 28 Bit) aus der 32-Bit-Variable:
+  uint8_t  espId  = (pkt.idAndSeq >> 28) & 0x0Fu;
+  uint32_t seqNum = pkt.idAndSeq & 0x0FFFFFFFu;
   
   Serial.print(" -> Extracted ESP-ID: ");
   Serial.println(espId);

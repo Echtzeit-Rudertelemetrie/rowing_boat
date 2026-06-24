@@ -88,6 +88,7 @@ void loop() {
     // Forward oarlock data over BLE the moment a full UART frame arrives.
     if (receiver.isNewDataAvailable()) {
         MeasurementPack data = receiver.getLatestPacket();
+        
         ble.notifyMeasurement(data);
     }
 
@@ -99,14 +100,21 @@ void loop() {
 
     unsigned long now = millis();
 
-    // Notify A: TelemetryPacket (GPS + IMU) at ~3.5 Hz.
+    // Notify: telemetry (GPS + IMU) at ~3.5 Hz. Shares the 84-byte MeasurementPack
+    // layout — id 0 marks telemetry, GPS goes in the force region, IMU in the angle
+    // region (see AppTypes.h).
     if (now - lastTelem >= TELEM_INTERVAL_MS) {
         lastTelem = now;
-        TelemetryPacket pkt{};
-        pkt.seq = telemSeq++;
-        pkt.gps = gps.data();
-        pkt.imu = lastImu;
-        ble.notifyTelemetry(pkt);
+        MeasurementPack pkt{};
+        pkt.idAndSeq = telemSeq++ & 0x0FFFFFFFu;   // id 0 (telemetry) | 28-bit seq
+
+        GpsData g = gps.data();
+        static_assert(sizeof(g)       <= sizeof(pkt.force_values), "GpsData exceeds region");
+        static_assert(sizeof(lastImu) <= sizeof(pkt.angle_values), "ImuData exceeds region");
+        memcpy(pkt.force_values, &g,       sizeof(g));
+        memcpy(pkt.angle_values, &lastImu, sizeof(lastImu));
+
+        ble.notifyMeasurement(pkt);
     }
 
     // 1 Hz status to the serial monitor + LED heartbeat (proves loop() is alive

@@ -7,16 +7,16 @@ bool BleSender::begin() {
     Bluefruit.Periph.setDisconnectCallback(_disconnectCb);
 
     _svc.begin();
-    _telChr.begin();
+    //_telChr.begin();
     _measChr.begin();
 
     _advertise();
     return true;
 }
 
-void BleSender::notifyTelemetry(const TelemetryPacket& pkt) {
-    _telChr.notify((const uint8_t*)&pkt, sizeof(pkt));
-}
+// void BleSender::notifyTelemetry(const TelemetryPacket& pkt) {
+//     _telChr.notify((const uint8_t*)&pkt, sizeof(pkt));
+// }
 
 void BleSender::notifyMeasurement(const MeasurementPack& pkt) {
     _measChr.notify((const uint8_t*)&pkt, sizeof(pkt));

@@ -31,8 +31,8 @@ void loop() {
     if (espReceiver.getPacket(incomingPack)) {
         
         // --- Debug Ausgabe auf USB ---
-        const uint8_t espId = static_cast<uint8_t>((incomingPack.espIdAndSeqenceNum >> 29) & 0x07u);
-        const uint32_t seq  = incomingPack.espIdAndSeqenceNum & 0x1FFFFFFFu;
+        const uint8_t espId = static_cast<uint8_t>((incomingPack.idAndSeq >> 28) & 0x0Fu);
+        const uint32_t seq  = incomingPack.idAndSeq & 0x0FFFFFFFu;
         Serial.printf("[RX] ESP-ID: %u | Seq: %lu -> Leite via UART weiter...\n", espId, static_cast<unsigned long>(seq));
 
         // 2. Paket unverändert via UART2 an den XIAO weiterleiten
@@ -45,7 +45,7 @@ void loop() {
             incomingPack.angle_values[i] = (uint16_t) i;
             incomingPack.force_values[i] = (uint16_t) i;
         }
-        incomingPack.espIdAndSeqenceNum = (uint32_t) 764874;
+        incomingPack.idAndSeq = (uint32_t) 764874;
 
         uartBridge.forwardPacket(incomingPack);
     }
