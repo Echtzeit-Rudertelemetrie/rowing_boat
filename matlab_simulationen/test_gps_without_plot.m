@@ -1,7 +1,7 @@
 close all; clear; clc;
 delete(serialportfind);
 
-s = serialport("/dev/cu.usbserial-110", 115200);
+s = serialport("/dev/cu.usbmodem1101", 115200);
 configureTerminator(s, "LF");
 flush(s);
 
