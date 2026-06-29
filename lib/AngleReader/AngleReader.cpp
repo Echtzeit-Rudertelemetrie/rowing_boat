@@ -14,13 +14,13 @@ float gyroOffsetZ = 0;
 
 // ── (1) Magnetometer-Kalibrierung – aus magcal in MATLAB übernommen ───────────
 // TODO: Kalibrierungswerte irgendwie dynamisch bekommen. Sind das überhaupt Kalibrierungswerte?
-const float AngleReader::MAG_A[3][3] = {
-    {1.0962f, 0.0f,    0.0f   },
-    {0.0f,    1.4670f, 0.0f   },
-    {0.0f,    0.0f,    0.6219f}
+const float AngleReader::MAG_A[3][3] = { // in matlab Werte herausfinden
+    {1.0f, 0.0f,    0.0f   },
+    {0.0f,    1.0f, 0.0f   },
+    {0.0f,    0.0f,    1.0f}
 };
 
-const float AngleReader::MAG_B[3] = {-115.4853f, 6.6805f, -14.4159f}; //TODO: Wie bekommen wir die Kalibrierungswerte dymanisch?
+const float AngleReader::MAG_B[3] = {105.3687f, -21.4514f, -4.7715f}; //TODO: Wie bekommen wir die Kalibrierungswerte dymanisch?
 
 static Quat makeIdentityQuat() {
     Quat q0;
