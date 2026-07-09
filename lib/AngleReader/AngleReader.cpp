@@ -138,13 +138,15 @@ bool AngleReader::readSample(Vec3& gyroV, Vec3& accelV, Vec3& magV) {
     float magCal[3];
     calibrateMag(magAligned, magCal);
 
-    // Einbaulage -> EKF-Frame: gleiche x<->z-Vertauschung wie beim alten Aufbau.
-    // Anders als frueher macht das Mag dieselbe Vertauschung mit, weil es jetzt
-    // auf demselben Chip sitzt (das alte MMC5603 war separat montiert).
-    // TODO: am realen Aufbau verifizieren — haengt von der Montage des Breakouts ab.
-    gyroV  = vec3(gz, gy, gx);
-    accelV = vec3(az, ay, ax);
-    magV   = vec3(magCal[2], magCal[1], magCal[0]);
+    // Einbaulage -> EKF-Frame: Breakout ist mit Y nach OBEN montiert.
+    // Zyklische Vertauschung (y, z, x) = echte Rotation (det +1, anders als der
+    // alte x<->z-Tausch, der eine Spiegelung war): die vertikale Body-Y-Achse
+    // landet auf der EKF-X-Achse, deren Drehung (Roll) der Dollen-Winkel ist.
+    // Das Mag macht dieselbe Vertauschung mit (sitzt auf demselben Chip).
+    // TODO: Vorzeichen am realen Aufbau pruefen (Drehrichtung Catch -> Finish).
+    gyroV  = vec3(gy, gz, gx);
+    accelV = vec3(ay, az, ax);
+    magV   = vec3(magCal[1], magCal[2], magCal[0]);
     return true;
 }
 
