@@ -14,7 +14,10 @@ DataSender::DataSender(MeasurementData& data)
 : data_(&data) {
 }
 
-void onDataSent(const uint8_t* mac, esp_now_send_status_t status) {
+// static: lib/ESPNOW (von test_sender/test_receiver genutzt) definiert ein
+// gleichnamiges onDataSent — ohne static gibt das einen Linker-Konflikt,
+// sobald beide Libs im selben Build landen.
+static void onDataSent(const uint8_t* mac, esp_now_send_status_t status) {
     Serial.print("ESP-NOW Sende-Status: ");
     if (status == ESP_NOW_SEND_SUCCESS) {
         Serial.println("Erfolgreich gesendet (ACK erhalten oder Broadcast rausgegangen)");
@@ -23,7 +26,8 @@ void onDataSent(const uint8_t* mac, esp_now_send_status_t status) {
     }
 }
 
-uint8_t* espnow_get_local_mac() {
+// static: gleicher Namenskonflikt mit lib/ESPNOW wie bei onDataSent.
+static uint8_t* espnow_get_local_mac() {
     static uint8_t mac[6]; //-> durch static bleibt adresse auch im nachhinein noch gültig (nachem function fertig)
     WiFi.macAddress(mac);
     return mac;
@@ -75,14 +79,9 @@ void DataSender::espnow_init_sender() {
     return static_cast<std::uint16_t>(normalized * maxInt + 0.5f);
   }
 
-esp_err_t espnow_send(const MeasurementPack* pkt) { //sendet paket an alle (weil s_hub_mac als broadcast definiert ist)
-    if (!peerAdded)
-    {
-      return ESP_FAIL;
-    }
-    return esp_now_send(hubMac, reinterpret_cast<const std::uint8_t*>(pkt), sizeof(MeasurementPack));
-}
-
+// Hier gab es frueher einen espnow_send(MeasurementPack*)-Wrapper — entfernt,
+// weil toter Code: sendData() ruft esp_now_send() direkt auf, der Wrapper
+// wurde nirgends aufgerufen.
 void DataSender::sendData() {
     if (data_ == nullptr) {
         return;
