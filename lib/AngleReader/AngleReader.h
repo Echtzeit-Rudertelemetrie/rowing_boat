@@ -15,7 +15,10 @@ public:
     float sampleAndCalculateAngle();
 
 private:
-    static constexpr unsigned long SAMPLE_INTERVAL_US = 10000UL; // 10 ms = 100 Hz (Maximum des AK09916)
+    // Nominale Abtastperiode: 10 ms = 100 Hz (Maximum des AK09916). Den Takt
+    // gibt der 100-Hz-Timer in DollenApp vor; die halbe Periode dient hier nur
+    // noch als Burst-Schutz-Schwelle gegen Mini-dt-Schritte bei Queue-Rueckstau.
+    static constexpr unsigned long SAMPLE_INTERVAL_US = 10000UL;
     static constexpr bool AD0_VAL = 1; // SparkFun-Breakout: ADR-Jumper offen -> I2C-Adresse 0x69
     static constexpr int GYRO_CALIB_SAMPLES = 500;
 

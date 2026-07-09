@@ -28,7 +28,16 @@ void DollenApp::begin() {
     }
   }
 
-  if (!timer_.begin(200)) {
+  // 100 Hz statt 200 Hz: Der AK09916-Magnetometer im ICM-20948 liefert maximal
+  // 100 Hz, schnelleres Ticken erzeugt also keine neuen Daten. Ausserdem ist der
+  // EKF-Schritt (u.a. 6x6-Matrixinversion in float) zu teuer, um ihn doppelt so
+  // oft anzustossen wie Messwerte entstehen. Vorher hat AngleReader intern auf
+  // 100 Hz begrenzt und bei 200-Hz-Ticks jeden zweiten Aufruf verworfen — jetzt
+  // gibt der Timer die Abtastrate direkt vor: 1 Tick = 1 EKF-Schritt
+  // (siehe AngleReader::sampleAndCalculateAngle). Nebeneffekt: das 32-Werte-
+  // Paket enthaelt jetzt 32 echte Samples statt 16 doppelten, ein Paket deckt
+  // 320 ms ab (~3 Pakete/s).
+  if (!timer_.begin(100)) {
     Serial.println("Timer konnte nicht gestartet werden.");
     while (true) {
       delay(1000);

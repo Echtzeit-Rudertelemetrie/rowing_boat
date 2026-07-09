@@ -174,8 +174,16 @@ float AngleReader::sampleAndCalculateAngle() {
         return lastAngleDeg;
     }
 
-    // 2) Wirklich nur alle 10 ms weiterrechnen (Timer feuert mit 200 Hz)
-    if ((nowUs - lastUpdateUs) < SAMPLE_INTERVAL_US) {
+    // 2) Kein eigener 100-Hz-Begrenzer mehr: der Timer in DollenApp tickt jetzt
+    // selbst mit 100 Hz und gibt die Abtastrate vor (1 Tick = 1 EKF-Schritt).
+    // Der alte Limiter (Skip wenn < 10 ms) hat zusammen mit dem 200-Hz-Timer
+    // jeden zweiten Aufruf verworfen; mit Timer-Jitter haette er bei exakt
+    // 100-Hz-Ticks sogar zufaellig echte Samples verschluckt (9.9 ms -> Skip,
+    // naechster Schritt dann mit 20 ms dt). Es bleibt nur ein Burst-Schutz:
+    // arbeitet die Event-Queue einen Rueckstau ab, kommen Ticks quasi
+    // gleichzeitig an — ein EKF-Schritt mit Mini-dt bringt nichts (der AK09916
+    // haette ohnehin keine neuen Daten) und wird uebersprungen.
+    if ((nowUs - lastUpdateUs) < SAMPLE_INTERVAL_US / 2) {
         return lastAngleDeg;
     }
 
