@@ -119,6 +119,12 @@ void DataSender::sendData() {
     }
 
     MeasurementPack pkt{};
+    // TODO/ABSTIMMUNG: Das vereinheitlichte Hub-Design (Branch ble_sender_mcu,
+    // Entscheidung 2026-06-24) sieht 4 Bit ID | 28 Bit Seq vor (<<28, Maske
+    // 0x0FFFFFFF); hier und auf main wird aktuell <<29 (3 Bit ID) kodiert.
+    // Beim Angleichen von PACKET_VALUES (siehe AppTypes.h) alle Stellen zusammen
+    // umstellen: dieser Sender inkl. der Masken-Checks oben (0x07/0x1FFFFFFF),
+    // ESP-NOW-Receiver und Phone-App.
     pkt.espIdAndSeqenceNum = (static_cast<std::uint32_t>(ESP_ID) << 29) | packetSeq;
 
     memcpy(pkt.force_values, forceBuffer, sizeof(forceBuffer));
