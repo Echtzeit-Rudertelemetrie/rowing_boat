@@ -1,5 +1,11 @@
 #include "DataSender.h"
 
+// Debug-Vollausgabe pro Paket (~900 Zeichen) laeuft im selben Task wie der
+// 100-Hz-EKF: liest kein Host den USB-CDC-Puffer, blockiert Serial die
+// Sample-Schleife und die Event-Queue (~210 ms Kapazitaet) laeuft ueber.
+// Deshalb standardmaessig aus — fuer Debugging auf 1 setzen.
+#define DATASENDER_DEBUG_DUMP 0
+
 constexpr std::uint8_t BROADCAST_MAC[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
 std::uint16_t forceBuffer[PACKET_VALUES]{};
@@ -18,20 +24,30 @@ DataSender::DataSender(MeasurementData& data)
 // gleichnamiges onDataSent — ohne static gibt das einen Linker-Konflikt,
 // sobald beide Libs im selben Build landen.
 static void onDataSent(const uint8_t* mac, esp_now_send_status_t status) {
+#if DATASENDER_DEBUG_DUMP
+    // Nur im Debug-Modus: der Callback laeuft im WiFi-Task (Core 0) — Serial
+    // von dort konkurriert mit dem Sample-Task um den CDC-Puffer.
     Serial.print("ESP-NOW Sende-Status: ");
     if (status == ESP_NOW_SEND_SUCCESS) {
         Serial.println("Erfolgreich gesendet (ACK erhalten oder Broadcast rausgegangen)");
     } else {
         Serial.println("FEHLER: Zustellung fehlgeschlagen (Empfänger nicht erreichbar/falscher Kanal)");
     }
+#else
+    (void)mac;
+    (void)status;
+#endif
 }
 
+#if DATASENDER_DEBUG_DUMP
 // static: gleicher Namenskonflikt mit lib/ESPNOW wie bei onDataSent.
+// Nur vom Debug-Dump genutzt — ohne den waere es eine unused-function-Warnung.
 static uint8_t* espnow_get_local_mac() {
     static uint8_t mac[6]; //-> durch static bleibt adresse auch im nachhinein noch gültig (nachem function fertig)
     WiFi.macAddress(mac);
     return mac;
 }
+#endif // DATASENDER_DEBUG_DUMP
 
 void DataSender::espnow_init_sender() {
     //s_board_id_sender = board_id; -> brauch ich das?
@@ -65,7 +81,9 @@ void DataSender::espnow_init_sender() {
     }
 }
 
-  std::uint16_t quantize(float value, float minValue, float maxValue, std::uint8_t bits) {
+  // invSpan = vorberechneter Kehrwert von (maxValue - minValue), siehe
+  // DataSender.h: Multiplikation statt Division im 100-Hz-Pfad.
+  std::uint16_t quantize(float value, float minValue, float maxValue, float invSpan, std::uint8_t bits) {
     const std::uint32_t maxInt = (1UL << bits) - 1UL;
 
     if (value <= minValue) {
@@ -75,7 +93,7 @@ void DataSender::espnow_init_sender() {
         return static_cast<std::uint16_t>(maxInt);
     }
 
-    const float normalized = (value - minValue) / (maxValue - minValue);
+    const float normalized = (value - minValue) * invSpan;
     return static_cast<std::uint16_t>(normalized * maxInt + 0.5f);
   }
 
@@ -91,6 +109,7 @@ void DataSender::sendData() {
         data_->forceSensor,
         FORCE_MIN_N,
         FORCE_MAX_N,
+        FORCE_INV_SPAN,
         static_cast<std::uint8_t>(sizeof(forceBuffer[0]) * CHAR_BIT)
     );
 
@@ -98,6 +117,7 @@ void DataSender::sendData() {
         data_->degreeSensor,
         ANGLE_MIN_DEG,
         ANGLE_MAX_DEG,
+        ANGLE_INV_SPAN,
         static_cast<std::uint8_t>(sizeof(angleBuffer[0]) * CHAR_BIT)
     );
 
@@ -141,6 +161,7 @@ void DataSender::sendData() {
         Serial.println("Peer was not added");
     }
 
+#if DATASENDER_DEBUG_DUMP
     Serial.println("Sending Data");
       Serial.println("=== Measurement Pack ===");
 
@@ -182,11 +203,12 @@ void DataSender::sendData() {
   Serial.println("Mac Adress");
     uint8_t* mac = espnow_get_local_mac();
     
-    Serial.printf("MAC-Adresse: %02X:%02X:%02X:%02X:%02X:%02X\n", 
+    Serial.printf("MAC-Adresse: %02X:%02X:%02X:%02X:%02X:%02X\n",
                   mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
 
     Serial.println();
     Serial.println();
+#endif // DATASENDER_DEBUG_DUMP
 
     bufferIndex = 0;
 }

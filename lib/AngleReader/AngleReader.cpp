@@ -16,6 +16,11 @@ const float AngleReader::MAG_A[3][3] = {
 
 const float AngleReader::MAG_B[3] = {0.0f, 0.0f, 0.0f};
 
+// Eigene float-Konstante statt Arduinos DEG_TO_RAD: das Makro ist ein
+// double-Literal und zieht die ganze Rechnung in Software-double — die
+// S3-FPU kann nur single precision, double kostet ein Vielfaches.
+static constexpr float kDegToRad = 0.017453293f;
+
 static Quat makeIdentityQuat() {
     Quat q0;
     q0.m[0][0] = 1.0f;
@@ -93,7 +98,7 @@ void AngleReader::calibrateGyroOffsets() {
 
     if (collected > 0) {
         for (int i = 0; i < 3; ++i) {
-            gyroOffset[i] = (sum[i] / collected) * DEG_TO_RAD;
+            gyroOffset[i] = (sum[i] / collected) * kDegToRad;
         }
     }
 
@@ -123,9 +128,9 @@ bool AngleReader::readSample(Vec3& gyroV, Vec3& accelV, Vec3& magV) {
     icm.getAGMT();
 
     // Gyro: SparkFun-Lib liefert dps -> rad/s (EKF-Erwartung), Ruhe-Offset abziehen
-    float gx = icm.gyrX() * DEG_TO_RAD - gyroOffset[0];
-    float gy = icm.gyrY() * DEG_TO_RAD - gyroOffset[1];
-    float gz = icm.gyrZ() * DEG_TO_RAD - gyroOffset[2];
+    float gx = icm.gyrX() * kDegToRad - gyroOffset[0];
+    float gy = icm.gyrY() * kDegToRad - gyroOffset[1];
+    float gz = icm.gyrZ() * kDegToRad - gyroOffset[2];
 
     // Accel bleibt in mg — der EKF normiert, nur die Richtung zaehlt
     float ax = icm.accX();
@@ -192,7 +197,9 @@ float AngleReader::sampleAndCalculateAngle() {
         return lastAngleDeg;
     }
 
-    float dt = (nowUs - lastUpdateUs) / 1000000.0f;
+    // *1e-6f statt /1e6f: Division hat auf der LX7-FPU keinen eigenen Befehl
+    // und wird zur mehrzykligen Reziprok-Sequenz — Multiplikation ist 1 Takt.
+    float dt = (nowUs - lastUpdateUs) * 1e-6f;
     lastUpdateUs = nowUs;
 
     // EKF-Schritt
