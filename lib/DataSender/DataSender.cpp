@@ -16,6 +16,15 @@ std::uint16_t angleBuffer[PACKET_VALUES]{};
 std::uint8_t bufferIndex = 0;
 std::uint32_t packetSeq = 0;
 
+#if DATASENDER_DEBUG_DUMP
+// Nur fuer den Serial-Dump: haelt die physikalischen Werte (N / Grad) VOR
+// der Quantisierung fest, damit der Dump menschenlesbar ist und nicht die
+// rohen uint16-Codes aus forceBuffer/angleBuffer zeigt. Das gesendete
+// Paket (pkt) bleibt davon unberuehrt -> gleiche Daten wie ohne Debug-Dump.
+float forceFloatBuffer[PACKET_VALUES]{};
+float angleFloatBuffer[PACKET_VALUES]{};
+#endif
+
 std::uint8_t hubMac[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 bool peerAdded = false;
 
@@ -100,6 +109,13 @@ void DataSender::espnow_init_sender() {
     return static_cast<std::uint16_t>(normalized * maxInt + 0.5f);
   }
 
+    std::uint16_t quantizeAngle(float value, std::uint8_t bits) {
+    const std::uint32_t maxInt = (1UL << bits) - 1UL;
+
+ 
+    return static_cast<std::uint16_t>(value * maxInt + 0.5f);
+  }
+
 // Hier gab es frueher einen espnow_send(MeasurementPack*)-Wrapper — entfernt,
 // weil toter Code: sendData() ruft esp_now_send() direkt auf, der Wrapper
 // wurde nirgends aufgerufen.
@@ -107,6 +123,11 @@ void DataSender::sendData() {
     if (data_ == nullptr) {
         return;
     }
+
+#if DATASENDER_DEBUG_DUMP
+    forceFloatBuffer[bufferIndex] = data_->forceSensor;
+    angleFloatBuffer[bufferIndex] = data_->degreeSensor;
+#endif
 
     forceBuffer[bufferIndex] = quantize(
         data_->forceSensor,
@@ -116,11 +137,11 @@ void DataSender::sendData() {
         static_cast<std::uint8_t>(sizeof(forceBuffer[0]) * CHAR_BIT)
     );
 
-    angleBuffer[bufferIndex] = quantize(
+    angleBuffer[bufferIndex] = quantizeAngle(
         data_->degreeSensor,
-        ANGLE_MIN_DEG,
-        ANGLE_MAX_DEG,
-        ANGLE_INV_SPAN,
+        // ANGLE_MIN_DEG,
+        // ANGLE_MAX_DEG,
+        // ANGLE_INV_SPAN,
         static_cast<std::uint8_t>(sizeof(angleBuffer[0]) * CHAR_BIT)
     );
 
@@ -171,20 +192,21 @@ void DataSender::sendData() {
     Serial.println(peerAdded ? "Sending Data" : "NOT sent (no peer) - packet content below anyway:");
       Serial.println("=== Measurement Pack ===");
 
-  // 1. Ausgabe der Force-Werte
-  Serial.print("Force Values: [");
+  // 1. Ausgabe der Force-Werte (physikalisch, N -- nicht die gesendeten
+  // quantisierten Codes, siehe forceFloatBuffer oben)
+  Serial.print("Force Values [N]: [");
   for (int i = 0; i < PACKET_VALUES; i++) {
-    Serial.print(pkt.force_values[i]);
+    Serial.print(forceFloatBuffer[i], 2);
     if (i < PACKET_VALUES - 1) {
       Serial.print(", ");
     }
   }
   Serial.println("]");
 
-  // 2. Ausgabe der Angle-Werte
-  Serial.print("Angle Values: [");
+  // 2. Ausgabe der Angle-Werte (physikalisch, Grad)
+  Serial.print("Angle Values [deg]: [");
   for (int i = 0; i < PACKET_VALUES; i++) {
-    Serial.print(pkt.angle_values[i]);
+    Serial.print(angleFloatBuffer[i], 2);
     if (i < PACKET_VALUES - 1) {
       Serial.print(", ");
     }

@@ -62,6 +62,17 @@ Mat<3, 4> obsJacobian(const Quat& q, const Vec3& ref) {
     return H * 2.0f;
 }
 
+// conjugate(q): Inverse einer Einheits-Quaternion (w bleibt, Vektorteil
+// negiert) -> kehrt die von rotVec() ausgefuehrte Rotationsrichtung um.
+Quat conjugate(const Quat& q) {
+    Quat c;
+    c.m[0][0] =  q.m[0][0];
+    c.m[1][0] = -q.m[1][0];
+    c.m[2][0] = -q.m[2][0];
+    c.m[3][0] = -q.m[3][0];
+    return c;
+}
+
 bool allFinite(const Mat<4, 4>& P) {
     for (int i = 0; i < 4; ++i)
         for (int j = 0; j < 4; ++j)
@@ -89,9 +100,15 @@ void OrientationEKF::setNoise(float gyroNoise, float accelNoise, float magNoise)
     magNoise_   = magNoise;
 }
 
-void OrientationEKF::setReferences(const Vec3& accelRef, const Vec3& magRef) {
-    float na = norm3(accelRef); accelRef_ = (na > 1e-9f) ? accelRef * (1.0f/na) : accelRef;
-    float nm = norm3(magRef);   magRef_   = (nm > 1e-9f) ? magRef   * (1.0f/nm) : magRef;
+void OrientationEKF::setReferences(const Quat& q, const Vec3& accelBody, const Vec3& magBody) {
+    // rotVec(q, ref) ist Welt->Body (siehe Kommentar dort); hier brauchen wir
+    // die Umkehrung Body->Welt, also mit der Konjugierten von q.
+    Quat qConj = conjugate(q);
+    Vec3 accelWorld = rotVec(qConj, accelBody);
+    Vec3 magWorld   = rotVec(qConj, magBody);
+
+    float na = norm3(accelWorld); accelRef_ = (na > 1e-9f) ? accelWorld * (1.0f/na) : accelWorld;
+    float nm = norm3(magWorld);   magRef_   = (nm > 1e-9f) ? magWorld   * (1.0f/nm) : magWorld;
 }
 
 void OrientationEKF::resetCovariance() { P_ = eye<4>(); }

@@ -232,7 +232,7 @@ float AngleReader::sampleAndCalculateAngle() {
             return lastAngleDeg;
         }
 
-        ekf.setReferences(accelV, magV);
+        ekf.setReferences(q, accelV, magV);
 
         lastUpdateUs = nowUs;
         initialized = true;

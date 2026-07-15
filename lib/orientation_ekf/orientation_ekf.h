@@ -24,10 +24,13 @@ public:
     // Rauschwerte nachträglich setzen (z. B. nach Boot-Kalibrierung im Stillstand).
     void setNoise(float gyroNoise, float accelNoise, float magNoise);
 
-    // Referenzvektoren im Welt-/NED-Rahmen setzen (normiert).
-    // Empfehlung: einmalig aus der ersten ruhenden Messung übernehmen
-    // (accel = Schwerkraftrichtung, mag = lokales Erdfeld).
-    void setReferences(const Vec3& accelRef, const Vec3& magRef);
+    // Referenzvektoren aus rohen Body-Frame-Messungen setzen (normiert).
+    // accelBody/magBody sind unrotierte Sensormessungen; q ist die aktuelle
+    // Orientierung -> wird gebraucht, um Body->Welt zurueckzurotieren (Inverse
+    // einer Einheits-Quaternion-Rotation = ihre Konjugierte). Empfehlung:
+    // einmalig aus der ersten ruhenden Messung übernehmen (accel =
+    // Schwerkraftrichtung, mag = lokales Erdfeld).
+    void setReferences(const Quat& q, const Vec3& accelBody, const Vec3& magBody);
 
     // Ein EKF-Schritt. Erwartet:
     //   q     – aktuelle Quaternion (vorheriger Schritt)
