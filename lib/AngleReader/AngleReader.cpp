@@ -4,10 +4,7 @@
 #include "AngleReader.h"
 
 // ── (1) Magnetometer-Kalibrierung ─────────────────────────────────────────────
-// TODO: Kalibrierwerte gelten pro Chip! Die alten MMC5603-Werte (magcal/MATLAB)
-// sind fuer den AK09916 im ICM-20948 unbrauchbar. Bis eine neue magcal-Messung
-// vorliegt: Identitaet/Null = unkalibriert. Neue Daten im Body-aligned-Frame
-// erfassen (also nach dem Y/Z-Flip in readSample()).
+
 const float AngleReader::MAG_A[3][3] = {
     {0.732492f, 0.0f, 0.0f},
     {0.0f, 1.59771f, 0.0f},
@@ -26,6 +23,30 @@ static Quat makeIdentityQuat() {
     q0.m[0][0] = 1.0f;
     return q0;
 }
+
+// Numerisch stabile Online-Varianz (Welford). Nur von calibrateSensorNoise()
+// genutzt; die Normierung mit (n-1) entspricht MATLABs var() in
+// sensor_noise_calibration.m, damit beide Seiten denselben Wert liefern.
+namespace {
+struct Welford {
+    float mean = 0.0f;
+    float m2   = 0.0f;
+    int   n    = 0;
+
+    void add(float x) {
+        ++n;
+        const float delta = x - mean;
+        mean += delta / static_cast<float>(n);
+        m2   += delta * (x - mean);
+    }
+
+    float variance() const {
+        if (n < 2) return 0.0f;
+        const float v = m2 / static_cast<float>(n - 1);
+        return (v > 0.0f) ? v : 0.0f;   // Rundung kann minimal unter 0 rutschen
+    }
+};
+} // namespace
 
 AngleReader::AngleReader()
     : ekf(kDefaultGyroNoise, kDefaultAccelNoise, kDefaultMagNoise),
@@ -116,9 +137,28 @@ void AngleReader::calibrateGyroOffsets() {
 void AngleReader::calibrateSensorNoise() {
     Serial.println("Rauschmessung (Sensor ruhig halten)...");
 
-    float gyroSum = 0.0f, gyroSumSq = 0.0f;
-    float accelSum = 0.0f, accelSumSq = 0.0f;
-    float magSum = 0.0f, magSumSq = 0.0f;
+    // Akkumulatoren PRO ACHSE, auf den ROHEN Messwerten. Zwei Fallen stecken hier:
+    //
+    // 1) Die Achsen duerfen nicht in einen gemeinsamen Mittelwert wandern. In Ruhe
+    //    liegt eine Accel-Achse bei ~g und die anderen bei ~0 — eine ueber alle drei
+    //    gepoolte Varianz misst dann den Abstand ZWISCHEN den Achsen statt des
+    //    Rauschens (beim normierten Vektor: 0.22 statt 1e-6).
+    //
+    // 2) Gemessen wird ROH, nicht normiert. Beim Normieren faellt das Rauschen
+    //    entlang der dominanten Richtung heraus (aus (1+e0, e1, e2) wird nach der
+    //    Division ~1.0), die Schwerkraft-Achse haette also scheinbar Varianz ~0.
+    //    Welche Achse das trifft, haengt aber an der KALIBRIERLAGE — wir wuerden
+    //    die Boot-Orientierung der Dolle in R einbetonieren, und sobald sich das
+    //    Ruder dreht, passt R nicht mehr. Die Varianz der rohen Komponenten ist
+    //    dagegen eine echte Sensoreigenschaft (MEMS-Achsen rauschen wirklich
+    //    unterschiedlich) und dreht sich mit dem Body-Frame mit. Die Umrechnung in
+    //    den normierten Messraum, in dem z/h leben, passiert unten ueber 1/|v|^2.
+    //
+    // Welford statt sum/sumSq: die Lehrbuchformel E[x^2]-E[x]^2 loescht sich in
+    // float aus, wenn der Mittelwert gross gegen das Rauschen ist (Accel: ~9.81
+    // vs ~0.009) — gemessen kamen dabei negative Varianzen heraus.
+    Welford gyroAcc[3], accelAcc[3], magAcc[3];
+    Welford accelNorm, magNorm;   // fuer die Skalierung roh -> normiert
     int collected = 0;
     const unsigned long deadlineMs = millis() + 3000; // Notausstieg, falls keine Daten kommen
 
@@ -130,13 +170,12 @@ void AngleReader::calibrateSensorNoise() {
             if (na < 1e-9f || nm < 1e-9f) continue; // Nullvektor -> Sample verwerfen
 
             for (int i = 0; i < 3; ++i) {
-                float g = gyroV.m[i][0];
-                float a = accelV.m[i][0] / na;
-                float m = magV.m[i][0] / nm;
-                gyroSum  += g;  gyroSumSq  += g * g;
-                accelSum += a;  accelSumSq += a * a;
-                magSum   += m;  magSumSq   += m * m;
+                gyroAcc[i].add(gyroV.m[i][0]);
+                accelAcc[i].add(accelV.m[i][0]);
+                magAcc[i].add(magV.m[i][0]);
             }
+            accelNorm.add(na);
+            magNorm.add(nm);
             ++collected;
         }
         delay(1);
@@ -148,22 +187,36 @@ void AngleReader::calibrateSensorNoise() {
         return;
     }
 
-    // Pooled Varianz ueber alle drei Achsen -> ein Skalar je Sensor, wie vom
-    // EKF erwartet (siehe R-Matrix / gyroNoise_-Skalierung in orientation_ekf.cpp).
-    const float n = static_cast<float>(collected * 3);
-    float gyroVar  = gyroSumSq  / n - (gyroSum  / n) * (gyroSum  / n);
-    float accelVar = accelSumSq / n - (accelSum / n) * (accelSum / n);
-    float magVar   = magSumSq   / n - (magSum   / n) * (magSum   / n);
+    // z und h im EKF sind normierte Vektoren -> R muss im normierten Raum leben.
+    // Isotropes Rohrauschen sigma^2 wird durch die Normierung zu sigma^2/|v|^2.
+    // Der Gyro geht roh in die Praediktion ein und bleibt daher unskaliert.
+    const float accelScale = 1.0f / (accelNorm.mean * accelNorm.mean);
+    const float magScale   = 1.0f / (magNorm.mean * magNorm.mean);
 
-    if (gyroVar > kNoisePlausibilityLimit || accelVar > kNoisePlausibilityLimit ||
-        magVar > kNoisePlausibilityLimit) {
-        Serial.println("Rauschmessung: Sensor war nicht still, bleibe bei Default-Werten.");
-        return;
+    Vec3 gyroVar, accelVar, magVar;
+    for (int i = 0; i < 3; ++i) {
+        gyroVar.m[i][0]  = gyroAcc[i].variance();
+        accelVar.m[i][0] = accelAcc[i].variance() * accelScale;
+        magVar.m[i][0]   = magAcc[i].variance()   * magScale;
+    }
+
+    for (int i = 0; i < 3; ++i) {
+        if (gyroVar.m[i][0]  > kNoisePlausibilityLimit ||
+            accelVar.m[i][0] > kNoisePlausibilityLimit ||
+            magVar.m[i][0]   > kNoisePlausibilityLimit) {
+            Serial.println("Rauschmessung: Sensor war nicht still, bleibe bei Default-Werten.");
+            return;
+        }
     }
 
     ekf.setNoise(gyroVar, accelVar, magVar);
-    Serial.printf("Rauschwerte gemessen: gyro=%.3e accel=%.3e mag=%.3e (%d Samples)\n",
-                  gyroVar, accelVar, magVar, collected);
+    Serial.printf("Rauschwerte gemessen (%d Samples), Varianz je EKF-Achse:\n", collected);
+    Serial.printf("  gyro  [(rad/s)^2]: %.3e %.3e %.3e\n",
+                  gyroVar.m[0][0], gyroVar.m[1][0], gyroVar.m[2][0]);
+    Serial.printf("  accel [normiert] : %.3e %.3e %.3e\n",
+                  accelVar.m[0][0], accelVar.m[1][0], accelVar.m[2][0]);
+    Serial.printf("  mag   [normiert] : %.3e %.3e %.3e\n",
+                  magVar.m[0][0], magVar.m[1][0], magVar.m[2][0]);
 }
 
 // ── Hilfsfunktion: Magnetometer kalibrieren ──────────────────────────────────

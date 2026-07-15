@@ -53,3 +53,42 @@ Available environments:
 - create more tests environments in `test/test_file.cpp` and log in `platformio.ini`
 
 Open your environment, click **General**, then **Upload and Monitor**. (ctrl B (build) and then ctrl U (upload))
+
+## Paketformat & Quantisierung
+
+> **TODO / offen mit dem Team:** Dieser Branch (`sensor_miniesp_code`) weicht im
+> Paketformat von `main` ab. Vor Feldtests abstimmen — solange es abweicht,
+> verwirft der Hub die Pakete per Laengencheck und es kommt **nichts** an.
+
+Die Dolle sendet per ESP-NOW eine `MeasurementPack` (siehe `lib/AppTypesDolle/AppTypes.h`):
+
+| Feld | Typ | Bedeutung |
+|---|---|---|
+| `espIdAndSeqenceNum` | `uint32` | 3 Bit ID (`<< 29`) \| 29 Bit Sequenznummer |
+| `force_values` | `uint16[PACKET_VALUES]` | quantisierte Kraft |
+| `angle_values` | `uint16[PACKET_VALUES]` | quantisierter Winkel |
+
+Bei 100 Hz Abtastung und `PACKET_VALUES = 32` deckt ein Paket 320 ms ab (~3 Pakete/s).
+
+### Dequantisierung (Empfaengerseite)
+
+Die Messwerte liegen **nicht** als physikalische Groessen im Paket, sondern als
+uint16-Codes. Die Spannen in `lib/DataSender/DataSender.h` sind der Massstab —
+der Empfaenger muss mit **denselben** Werten zurueckrechnen, sonst sind die Daten
+still falsch (der Laengencheck faengt das nicht ab):
+
+```c
+force_N   = code / 65535.0 * 1000.0;          // FORCE_MIN_N   =    0, FORCE_MAX_N   = 1000
+angle_deg = code / 65535.0 * 360.0 - 180.0;   // ANGLE_MIN_DEG = -180, ANGLE_MAX_DEG =  180
+```
+
+Aufloesung: Kraft 0.015 N, Winkel 0.0055°. Werte ausserhalb der Spanne werden
+senderseitig geklemmt (nicht gewrappt).
+
+### Offene Abstimmungspunkte gegenueber `main`
+
+| Punkt | dieser Branch | `main` / Hub-Design |
+|---|---|---|
+| `PACKET_VALUES` | 32 (-> 132 Byte) | 20 (-> 84 Byte) |
+| ID/Seq-Kodierung | 3 Bit ID, `<< 29` | 4 Bit ID, `<< 28` (Entscheidung 2026-06-24) |
+| Dequantisierung | siehe oben | noch nicht dokumentiert |

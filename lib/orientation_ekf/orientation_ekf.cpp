@@ -62,6 +62,15 @@ Mat<3, 4> obsJacobian(const Quat& q, const Vec3& ref) {
     return H * 2.0f;
 }
 
+// diag3(v): 3x3-Diagonalmatrix aus einem Vektor (entspricht MATLAB diag(v)).
+Mat<3, 3> diag3(const Vec3& v) {
+    Mat<3, 3> D;
+    D.m[0][0] = v.m[0][0];
+    D.m[1][1] = v.m[1][0];
+    D.m[2][2] = v.m[2][0];
+    return D;
+}
+
 // conjugate(q): Inverse einer Einheits-Quaternion (w bleibt, Vektorteil
 // negiert) -> kehrt die von rotVec() ausgefuehrte Rotationsrichtung um.
 Quat conjugate(const Quat& q) {
@@ -85,7 +94,9 @@ bool allFinite(const Mat<4, 4>& P) {
 // ── Klassen-Implementierung ───────────────────────────────────────────────────
 
 OrientationEKF::OrientationEKF(float gyroNoise, float accelNoise, float magNoise)
-    : gyroNoise_(gyroNoise), accelNoise_(accelNoise), magNoise_(magNoise) {
+    : gyroNoise_(vec3(gyroNoise, gyroNoise, gyroNoise)),
+      accelNoise_(vec3(accelNoise, accelNoise, accelNoise)),
+      magNoise_(vec3(magNoise, magNoise, magNoise)) {
     P_ = eye<4>();
     // sinnvolle Default-Referenzen aus ekf_update.m (besser: setReferences() aufrufen)
     accelRef_ = vec3(-1.0f, -1.0f, 1.0f);
@@ -95,9 +106,15 @@ OrientationEKF::OrientationEKF(float gyroNoise, float accelNoise, float magNoise
 }
 
 void OrientationEKF::setNoise(float gyroNoise, float accelNoise, float magNoise) {
-    gyroNoise_  = gyroNoise;
-    accelNoise_ = accelNoise;
-    magNoise_   = magNoise;
+    setNoise(vec3(gyroNoise, gyroNoise, gyroNoise),
+             vec3(accelNoise, accelNoise, accelNoise),
+             vec3(magNoise, magNoise, magNoise));
+}
+
+void OrientationEKF::setNoise(const Vec3& gyroVar, const Vec3& accelVar, const Vec3& magVar) {
+    gyroNoise_  = gyroVar;
+    accelNoise_ = accelVar;
+    magNoise_   = magVar;
 }
 
 void OrientationEKF::setReferences(const Quat& q, const Vec3& accelBody, const Vec3& magBody) {
@@ -125,8 +142,12 @@ Quat OrientationEKF::update(const Quat& q, const Vec3& gyro,
     Mat<4, 4> Omega  = omegaMat(gyro);
     Quat      q_pred = normalizeQ(q + (Omega * q) * (0.5f * dt));
     Mat<4, 4> F      = eye<4>() + Omega * (0.5f * dt);
-    Mat<4, 3> W      = wMat(q);
-    Mat<4, 4> P_pred = F * P_ * transpose(F) + (W * transpose(W)) * gyroNoise_;
+    Mat<4, 3> W      = wMat(q) * dt; //dt hat hier gefehlt
+    // Prozessrauschen als W*Sigma_omega*W' statt (W*W')*sigma^2: die Annahme
+    // gleicher Achsvarianzen trifft beim realen Gyro nicht zu. Sigma ist die
+    // Diagonale der drei gemessenen Achsvarianzen; sind sie gleich, faellt das
+    // exakt auf den alten Ausdruck zurueck.
+    Mat<4, 4> P_pred = F * P_ * transpose(F) + W * diag3(gyroNoise_) * transpose(W);
 
     // ── Messmodell (6x1): erwartete vs. gemessene Accel-/Mag-Richtung ──────────
     Vec3 h_a = rotVec(q_pred, accelRef_);
@@ -144,10 +165,13 @@ Quat OrientationEKF::update(const Quat& q, const Vec3& gyro,
     for (int j = 0; j < 4; ++j)
         for (int i = 0; i < 3; ++i) { H.m[i][j] = Ha.m[i][j]; H.m[i + 3][j] = Hm.m[i][j]; }
 
-    // Messrauschen R (6x6, diagonal)
+    // Messrauschen R (6x6, diagonal) — Varianz je Achse statt eines Skalars
+    // pro Sensor: gilt dasselbe Argument wie beim Prozessrauschen oben.
     Mat<6, 6> R;
-    R.m[0][0] = R.m[1][1] = R.m[2][2] = accelNoise_;
-    R.m[3][3] = R.m[4][4] = R.m[5][5] = magNoise_;
+    for (int i = 0; i < 3; ++i) {
+        R.m[i][i]         = accelNoise_.m[i][0];
+        R.m[i + 3][i + 3] = magNoise_.m[i][0];
+    }
 
     // ── Korrektur ──────────────────────────────────────────────────────────────
     Mat<6, 6> S = H * P_pred * transpose(H) + R;

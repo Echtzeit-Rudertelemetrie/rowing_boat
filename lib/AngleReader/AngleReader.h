@@ -36,6 +36,23 @@ private:
     // Sensor waehrend der Kalibrierung vermutlich in Bewegung -> verwerfen.
     static constexpr float kNoisePlausibilityLimit = 1e-2f;
 
+    // ── TODO/REFACTOR: Kalibrierung raus aus AngleReader ─────────────────────
+    // Die drei calibrate*()-Methoden gehoeren in eine eigene Klasse mit eigener
+    // main + eigener PlatformIO-Env (analog xiao_s3_matlab), nicht in den
+    // 100-Hz-Messpfad. Gruende:
+    //   * Kalibrierung ist ein EINMALIGER Werksschritt, kein Boot-Schritt. Aktuell
+    //     kostet sie bei jedem Start ~6 s (2x 3 s Deadline) und unterstellt, dass
+    //     die Dolle beim Einschalten still liegt — im Boot ist das nicht gegeben.
+    //   * Ergebnisse gehoeren nach NVS (Preferences), nicht in den Flash-Code:
+    //     Rauschvarianzen je Achse, Gyro-Offsets UND MAG_A/MAG_B, die heute als
+    //     Konstanten oben im .cpp stehen. Boot liest NVS, faellt bei leerem NVS
+    //     auf die kDefault*-Werte zurueck.
+    //   * Env-Vorschlag: xiao_s3_calib mit -D RUN_FACTORY_CALIB=1 und eigener
+    //     main, die die Messung fuehrt (Nutzerfuehrung ueber Serial) und schreibt.
+    // Siehe auch das Zeroing-Thema: setReferences() definiert den Nullpunkt aus
+    // der Boot-Lage — ein definiertes Zeroing (Ruder in Referenzposition, dann
+    // Kommando) gehoert in dieselbe Kalibrier-Main.
+    //
     // Sensor-Rauschen im Stillstand messen und bei plausiblem Ergebnis ins
     // EKF uebernehmen (sonst bleiben die kDefault*Noise-Werte aktiv).
     void calibrateSensorNoise();

@@ -109,12 +109,12 @@ void DataSender::espnow_init_sender() {
     return static_cast<std::uint16_t>(normalized * maxInt + 0.5f);
   }
 
-    std::uint16_t quantizeAngle(float value, std::uint8_t bits) {
-    const std::uint32_t maxInt = (1UL << bits) - 1UL;
+//     std::uint16_t quantizeAngle(float value, std::uint8_t bits) {
+//     const std::uint32_t maxInt = (1UL << bits) - 1UL;
 
  
-    return static_cast<std::uint16_t>(value * maxInt + 0.5f);
-  }
+//     return static_cast<std::uint16_t>(value * maxInt + 0.5f);
+//   }
 
 // Hier gab es frueher einen espnow_send(MeasurementPack*)-Wrapper — entfernt,
 // weil toter Code: sendData() ruft esp_now_send() direkt auf, der Wrapper
@@ -137,11 +137,11 @@ void DataSender::sendData() {
         static_cast<std::uint8_t>(sizeof(forceBuffer[0]) * CHAR_BIT)
     );
 
-    angleBuffer[bufferIndex] = quantizeAngle(
+    angleBuffer[bufferIndex] = quantize(
         data_->degreeSensor,
-        // ANGLE_MIN_DEG,
-        // ANGLE_MAX_DEG,
-        // ANGLE_INV_SPAN,
+        ANGLE_MIN_DEG,
+        ANGLE_MAX_DEG,
+        ANGLE_INV_SPAN,
         static_cast<std::uint8_t>(sizeof(angleBuffer[0]) * CHAR_BIT)
     );
 
