@@ -3,8 +3,11 @@
 // Debug-Vollausgabe pro Paket (~900 Zeichen) laeuft im selben Task wie der
 // 100-Hz-EKF: liest kein Host den USB-CDC-Puffer, blockiert Serial die
 // Sample-Schleife und die Event-Queue (~210 ms Kapazitaet) laeuft ueber.
-// Deshalb standardmaessig aus — fuer Debugging auf 1 setzen.
+// Deshalb standardmaessig aus. Einschalten ohne Code-Aenderung: env
+// "xiao_s3_debug" in platformio.ini bauen (setzt -D DATASENDER_DEBUG_DUMP=1).
+#ifndef DATASENDER_DEBUG_DUMP
 #define DATASENDER_DEBUG_DUMP 0
+#endif
 
 constexpr std::uint8_t BROADCAST_MAC[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
@@ -162,7 +165,10 @@ void DataSender::sendData() {
     }
 
 #if DATASENDER_DEBUG_DUMP
-    Serial.println("Sending Data");
+    // peerAdded=false: esp_now_send() lief oben gar nicht -> Paketinhalt ist
+    // trotzdem interessant (zeigt, was gesendet WORDEN WAERE), muss aber klar
+    // als nicht abgeschickt markiert sein statt wie unten "Sending Data".
+    Serial.println(peerAdded ? "Sending Data" : "NOT sent (no peer) - packet content below anyway:");
       Serial.println("=== Measurement Pack ===");
 
   // 1. Ausgabe der Force-Werte
