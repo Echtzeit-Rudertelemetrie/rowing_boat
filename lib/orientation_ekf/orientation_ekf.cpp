@@ -83,6 +83,12 @@ OrientationEKF::OrientationEKF(float gyroNoise, float accelNoise, float magNoise
     magRef_   = vec3(0.44f, 0.03f, 0.90f);
 }
 
+void OrientationEKF::setNoise(float gyroNoise, float accelNoise, float magNoise) {
+    gyroNoise_  = gyroNoise;
+    accelNoise_ = accelNoise;
+    magNoise_   = magNoise;
+}
+
 void OrientationEKF::setReferences(const Vec3& accelRef, const Vec3& magRef) {
     float na = norm3(accelRef); accelRef_ = (na > 1e-9f) ? accelRef * (1.0f/na) : accelRef;
     float nm = norm3(magRef);   magRef_   = (nm > 1e-9f) ? magRef   * (1.0f/nm) : magRef;

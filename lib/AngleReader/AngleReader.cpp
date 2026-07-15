@@ -9,12 +9,12 @@
 // vorliegt: Identitaet/Null = unkalibriert. Neue Daten im Body-aligned-Frame
 // erfassen (also nach dem Y/Z-Flip in readSample()).
 const float AngleReader::MAG_A[3][3] = {
-    {1.0f, 0.0f, 0.0f},
-    {0.0f, 1.0f, 0.0f},
-    {0.0f, 0.0f, 1.0f}
+    {0.732492f, 0.0f, 0.0f},
+    {0.0f, 1.59771f, 0.0f},
+    {0.0f, 0.0f, 0.854473f}
 };
 
-const float AngleReader::MAG_B[3] = {0.0f, 0.0f, 0.0f};
+const float AngleReader::MAG_B[3] = {49.6071f, -89.4899f, -73.1404f};
 
 // Eigene float-Konstante statt Arduinos DEG_TO_RAD: das Makro ist ein
 // double-Literal und zieht die ganze Rechnung in Software-double — die
@@ -28,7 +28,7 @@ static Quat makeIdentityQuat() {
 }
 
 AngleReader::AngleReader()
-    : ekf(0.09f /*gyro*/, 0.25f /*accel*/, 0.64f /*mag*/),
+    : ekf(kDefaultGyroNoise, kDefaultAccelNoise, kDefaultMagNoise),
       q(makeIdentityQuat()),
       initialized(false),
       hwOk(false),
@@ -36,7 +36,9 @@ AngleReader::AngleReader()
       lastAngleDeg(0.0f),
       gyroOffset{0.0f, 0.0f, 0.0f} {
     // KEIN Hardware-Zugriff im Konstruktor! Der laeuft als globale Static-Init
-    // noch vor setup()/Serial.begin(). I2C-Init passiert in begin().
+    // noch vor setup()/Serial.begin(). I2C-Init passiert in begin(). Der EKF
+    // startet deshalb mit den kDefault*Noise-Werten; calibrateSensorNoise()
+    // in begin() ersetzt sie bei plausibler Messung durch die gemessenen.
 }
 
 bool AngleReader::begin() {
@@ -74,6 +76,7 @@ bool AngleReader::begin() {
 
     hwOk = true;
     calibrateGyroOffsets();
+    calibrateSensorNoise();
     return true;
 }
 
@@ -104,6 +107,63 @@ void AngleReader::calibrateGyroOffsets() {
 
     Serial.printf("Gyro-Offsets [rad/s]: %.5f %.5f %.5f (%d Samples)\n",
                   gyroOffset[0], gyroOffset[1], gyroOffset[2], collected);
+}
+
+// ── Sensor-Rauschen im Stillstand messen (Sensor muss dabei still liegen) ────
+// Ersetzt bei plausiblem Ergebnis die Konstruktor-Defaults im EKF. Schlaegt
+// die Messung fehl oder wirkt sie unplausibel (Sensor wurde bewegt), bleiben
+// die kDefault*Noise-Werte aktiv.
+void AngleReader::calibrateSensorNoise() {
+    Serial.println("Rauschmessung (Sensor ruhig halten)...");
+
+    float gyroSum = 0.0f, gyroSumSq = 0.0f;
+    float accelSum = 0.0f, accelSumSq = 0.0f;
+    float magSum = 0.0f, magSumSq = 0.0f;
+    int collected = 0;
+    const unsigned long deadlineMs = millis() + 3000; // Notausstieg, falls keine Daten kommen
+
+    while (collected < NOISE_CALIB_SAMPLES && millis() < deadlineMs) {
+        Vec3 gyroV, accelV, magV;
+        if (readSample(gyroV, accelV, magV)) {
+            float na = norm3(accelV);
+            float nm = norm3(magV);
+            if (na < 1e-9f || nm < 1e-9f) continue; // Nullvektor -> Sample verwerfen
+
+            for (int i = 0; i < 3; ++i) {
+                float g = gyroV.m[i][0];
+                float a = accelV.m[i][0] / na;
+                float m = magV.m[i][0] / nm;
+                gyroSum  += g;  gyroSumSq  += g * g;
+                accelSum += a;  accelSumSq += a * a;
+                magSum   += m;  magSumSq   += m * m;
+            }
+            ++collected;
+        }
+        delay(1);
+    }
+
+    const int MIN_NOISE_SAMPLES = 50;
+    if (collected < MIN_NOISE_SAMPLES) {
+        Serial.println("Rauschmessung: zu wenig Samples, bleibe bei Default-Werten.");
+        return;
+    }
+
+    // Pooled Varianz ueber alle drei Achsen -> ein Skalar je Sensor, wie vom
+    // EKF erwartet (siehe R-Matrix / gyroNoise_-Skalierung in orientation_ekf.cpp).
+    const float n = static_cast<float>(collected * 3);
+    float gyroVar  = gyroSumSq  / n - (gyroSum  / n) * (gyroSum  / n);
+    float accelVar = accelSumSq / n - (accelSum / n) * (accelSum / n);
+    float magVar   = magSumSq   / n - (magSum   / n) * (magSum   / n);
+
+    if (gyroVar > kNoisePlausibilityLimit || accelVar > kNoisePlausibilityLimit ||
+        magVar > kNoisePlausibilityLimit) {
+        Serial.println("Rauschmessung: Sensor war nicht still, bleibe bei Default-Werten.");
+        return;
+    }
+
+    ekf.setNoise(gyroVar, accelVar, magVar);
+    Serial.printf("Rauschwerte gemessen: gyro=%.3e accel=%.3e mag=%.3e (%d Samples)\n",
+                  gyroVar, accelVar, magVar, collected);
 }
 
 // ── Hilfsfunktion: Magnetometer kalibrieren ──────────────────────────────────

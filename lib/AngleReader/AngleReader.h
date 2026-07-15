@@ -25,6 +25,21 @@ private:
     static const float MAG_A[3][3];
     static const float MAG_B[3];
 
+    // Default-Rauschwerte (Fallback, falls die Boot-Kalibrierung fehlschlaegt
+    // oder der Sensor dabei nicht still lag) — aus sensor_noise_calibration.m.
+    static constexpr float kDefaultGyroNoise  = 9.89699e-07f; // (rad/s)^2, roh
+    static constexpr float kDefaultAccelNoise = 8.16387e-07f; // normierter Accel-Vektor
+    static constexpr float kDefaultMagNoise   = 3.11544e-05f; // normierter Mag-Vektor
+
+    static constexpr int NOISE_CALIB_SAMPLES = 200;
+    // Grobe obere Schranke: liegt eine gemessene Varianz darueber, war der
+    // Sensor waehrend der Kalibrierung vermutlich in Bewegung -> verwerfen.
+    static constexpr float kNoisePlausibilityLimit = 1e-2f;
+
+    // Sensor-Rauschen im Stillstand messen und bei plausiblem Ergebnis ins
+    // EKF uebernehmen (sonst bleiben die kDefault*Noise-Werte aktiv).
+    void calibrateSensorNoise();
+
     static void calibrateMag(const float raw[3], float out[3]);
     void calibrateGyroOffsets();
     bool readSample(Vec3& gyroV, Vec3& accelV, Vec3& magV);

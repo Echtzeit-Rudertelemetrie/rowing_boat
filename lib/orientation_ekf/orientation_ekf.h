@@ -21,6 +21,9 @@ public:
                             float accelNoise = 0.25f,
                             float magNoise   = 0.64f);
 
+    // Rauschwerte nachträglich setzen (z. B. nach Boot-Kalibrierung im Stillstand).
+    void setNoise(float gyroNoise, float accelNoise, float magNoise);
+
     // Referenzvektoren im Welt-/NED-Rahmen setzen (normiert).
     // Empfehlung: einmalig aus der ersten ruhenden Messung übernehmen
     // (accel = Schwerkraftrichtung, mag = lokales Erdfeld).
