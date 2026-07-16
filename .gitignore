@@ -1,0 +1,8 @@
+# MATLAB Autosaves — Zwischenstaende, gehoeren nicht in die Historie
+*.asv
+*.m~
+
+# MATLAB / OS Kram
+slprj/
+*.slxc
+.DS_Store
