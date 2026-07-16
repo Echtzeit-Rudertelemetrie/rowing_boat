@@ -17,7 +17,14 @@ public:
 
 private:
     QueueHandle_t packetQueue;
-    
+
+    // Der Sender schickt jedes logische Paket PACKET_RETRIES-mal (identische
+    // seq). Hier deduplizieren wir per Board-ID (3-Bit-ID -> max 8), damit
+    // UART/BLE jedes Paket nur einmal bekommen.
+    static constexpr uint8_t MAX_BOARD_IDS = 8;
+    volatile uint32_t lastSeqPerId[MAX_BOARD_IDS];
+    volatile bool     seenPerId[MAX_BOARD_IDS];
+
     // Statische Methode für den C-Callback von ESP-IDF
 #if ESP_IDF_VERSION_MAJOR >= 5
     static void onDataRecv(const esp_now_recv_info_t *recv_info, const uint8_t *incomingData, int len);
