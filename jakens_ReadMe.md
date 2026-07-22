@@ -4,7 +4,7 @@
 Wir haben 3 Microcontroller, die alle ihre eigene main haben:
 
 ##### Der Mini ESP an der Dolle, der die Daten ausliest und per ESP Now verschickt (EspNow_Sender):
-main_espNow_sender.cpp
+main_espNow_sender.cpp (im Moment mainDolle.cpp)
 
 ##### Der ESP Wroom, der die Daten über ESP Now empfängt und per Uart weiterleitet
 main_espNow_receiver.cpp
