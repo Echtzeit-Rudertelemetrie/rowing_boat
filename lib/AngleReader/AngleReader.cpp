@@ -6,12 +6,13 @@
 // ── (1) Magnetometer-Kalibrierung ─────────────────────────────────────────────
 
 const float AngleReader::MAG_A[3][3] = {
-    {0.732492f, 0.0f, 0.0f},
-    {0.0f, 1.59771f, 0.0f},
-    {0.0f, 0.0f, 0.854473f}
+    {1.97954f, 0.0f, 0.0f},
+    {0.0f, 0.976826f, 0.0f},
+    {0.0f, 0.0f, 0.517154f}
 };
 
-const float AngleReader::MAG_B[3] = {49.6071f, -89.4899f, -73.1404f};
+
+const float AngleReader::MAG_B[3] = {39.4022f, -96.3556f, -83.9676f};
 
 // Eigene float-Konstante statt Arduinos DEG_TO_RAD: das Makro ist ein
 // double-Literal und zieht die ganze Rechnung in Software-double — die
