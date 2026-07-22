@@ -111,8 +111,11 @@ bool inverse(const Mat<N, N>& in, Mat<N, N>& out) {
                 float t = a[col][j]; a[col][j] = a[piv][j]; a[piv][j] = t;
             }
 
-        float d = a[col][col];
-        for (int j = 0; j < 2 * N; ++j) a[col][j] /= d;
+        // Reziprok statt Division: die Xtensa-LX7-FPU hat keinen Divisions-
+        // befehl, jede Division kostet eine mehrzyklige Reziprok-Sequenz.
+        // 1 Division pro Pivot statt 2N (bei 6x6: 6 statt 72 pro Inversion).
+        const float dInv = 1.0f / a[col][col];
+        for (int j = 0; j < 2 * N; ++j) a[col][j] *= dInv;
 
         for (int r = 0; r < N; ++r) {
             if (r == col) continue;

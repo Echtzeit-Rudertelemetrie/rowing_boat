@@ -1,0 +1,12 @@
+{
+  "sandbox": {
+    "enabled": true,
+    "filesystem": {
+      "denyRead": ["~/"],
+      "allowRead": ["."]
+    }
+  },
+  "permissions": {
+    "allow": ["Bash(*)"]
+  }
+}
