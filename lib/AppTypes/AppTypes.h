@@ -29,6 +29,31 @@ typedef struct __attribute__((packed)) {
   u_int16_t angle_values[PACKET_VALUES];
 } MeasurementPack;
 
+// ── Kodierung von espIdAndSeqenceNum ────────────────────────────────────────
+// 4 Bit ID (oben) | 28 Bit Sequenznummer — vereinheitlichtes Hub-Design
+// (Entscheidung 2026-06-24, umgesetzt 2026-07-22; vorher 3/29 Bit).
+//   id 0      -> Telemetrie: force_values traegt GpsData, angle_values ImuData
+//   id 1..15  -> Dolle #id: force/angle wie benannt
+// Immer ueber diese Helfer kodieren/dekodieren, nie mit eigenen Shifts: die
+// Kodierung ist schon einmal zwischen Sender, Empfaenger und Phone-App
+// auseinandergelaufen. Die Phone-App muss dasselbe Schema lesen.
+static constexpr uint8_t  IDSEQ_ID_SHIFT = 28;
+static constexpr uint8_t  IDSEQ_ID_MASK  = 0x0Fu;
+static constexpr uint32_t IDSEQ_SEQ_MASK = 0x0FFFFFFFu;
+
+static constexpr uint32_t packIdSeq(uint8_t id, uint32_t seq) {
+  return (static_cast<uint32_t>(id & IDSEQ_ID_MASK) << IDSEQ_ID_SHIFT) |
+         (seq & IDSEQ_SEQ_MASK);
+}
+
+static constexpr uint8_t idFromIdSeq(uint32_t idAndSeq) {
+  return static_cast<uint8_t>((idAndSeq >> IDSEQ_ID_SHIFT) & IDSEQ_ID_MASK);
+}
+
+static constexpr uint32_t seqFromIdSeq(uint32_t idAndSeq) {
+  return idAndSeq & IDSEQ_SEQ_MASK;
+}
+
 struct MeasurementData {
   float forceSensor;
   float degreeSensor;

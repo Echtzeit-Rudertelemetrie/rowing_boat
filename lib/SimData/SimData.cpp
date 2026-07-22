@@ -36,7 +36,7 @@ MeasurementPack SimData::telemetry() {
 }
 
 MeasurementPack SimData::dolle(uint8_t boardId) {
-    if (boardId < 1 || boardId > 7) boardId = 1;
+    if (boardId < 1 || boardId > IDSEQ_ID_MASK) boardId = 1;
     const uint32_t s = seq_[boardId]++;
 
     MeasurementPack p{};

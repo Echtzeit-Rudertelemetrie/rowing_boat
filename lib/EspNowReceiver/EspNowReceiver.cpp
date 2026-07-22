@@ -63,11 +63,11 @@ void EspNowReceiver::onDataRecv(const uint8_t *mac, const uint8_t *incomingData,
 
     if (instance && instance->packetQueue) {
         // ID/Seq aus den ersten 4 Bytes lesen (espIdAndSeqenceNum, little-endian):
-        // id = obere 3 Bit, seq = untere 29 Bit (identisch zur Sender-Kodierung).
+        // 4 Bit ID | 28 Bit Seq, identisch zur Sender-Kodierung (AppTypes.h).
         uint32_t idAndSeq;
         memcpy(&idAndSeq, incomingData, sizeof(idAndSeq));
-        const uint8_t  id  = static_cast<uint8_t>((idAndSeq >> 29) & 0x07u);
-        const uint32_t seq = idAndSeq & 0x1FFFFFFFu;
+        const uint8_t  id  = idFromIdSeq(idAndSeq);
+        const uint32_t seq = seqFromIdSeq(idAndSeq);
 
         // Wiederholungen (PACKET_RETRIES) desselben logischen Pakets verwerfen.
         if (instance->seenPerId[id] && instance->lastSeqPerId[id] == seq) {

@@ -167,24 +167,18 @@ void DataSender::sendData()
 
     ++packetSeq;
 
-    if ((ESP_ID & ~0x07u) != 0)
+    if ((ESP_ID & ~IDSEQ_ID_MASK) != 0)
     {
-        // Fehlerbehandlung: ESP_ID ist außerhalb des 3-Bit-Bereichs
+        // Fehlerbehandlung: ESP_ID ist außerhalb des 4-Bit-Bereichs
     }
 
-    if ((packetSeq & ~0x1FFFFFFFu) != 0)
+    if ((packetSeq & ~IDSEQ_SEQ_MASK) != 0)
     {
-        // Fehlerbehandlung: Sequenznummer ist außerhalb des 29-Bit-Bereichs
+        // Fehlerbehandlung: Sequenznummer ist außerhalb des 28-Bit-Bereichs
     }
 
     MeasurementPack pkt{};
-    // TODO/ABSTIMMUNG: Das vereinheitlichte Hub-Design (Branch ble_sender_mcu,
-    // Entscheidung 2026-06-24) sieht 4 Bit ID | 28 Bit Seq vor (<<28, Maske
-    // 0x0FFFFFFF); hier und auf main wird aktuell <<29 (3 Bit ID) kodiert.
-    // Beim Angleichen von PACKET_VALUES (siehe AppTypes.h) alle Stellen zusammen
-    // umstellen: dieser Sender inkl. der Masken-Checks oben (0x07/0x1FFFFFFF),
-    // ESP-NOW-Receiver und Phone-App.
-    pkt.espIdAndSeqenceNum = (static_cast<std::uint32_t>(ESP_ID) << 29) | packetSeq;
+    pkt.espIdAndSeqenceNum = packIdSeq(ESP_ID, packetSeq);
 
     memcpy(pkt.force_values, forceBuffer, sizeof(forceBuffer));
     memcpy(pkt.angle_values, angleBuffer, sizeof(angleBuffer));
@@ -247,10 +241,10 @@ void DataSender::sendData()
     Serial.print("Raw ID & Seq: ");
     Serial.println(pkt.espIdAndSeqenceNum);
 
-    // Optional: Falls ID und Sequenznummer als zwei 16-Bit-Werte in der
-    // 32-Bit-Variable verpackt sind, können sie so extrahiert werden:
-    uint16_t espId = (pkt.espIdAndSeqenceNum >> 29) & 0xFFFF;
-    uint16_t seqNum = pkt.espIdAndSeqenceNum & 0xFFFF;
+    // 4 Bit ID | 28 Bit Sequenz (siehe AppTypes.h). Die Sequenz vorher auf
+    // 16 Bit zu maskieren hat sie ab 65536 falsch angezeigt.
+    uint8_t espId = idFromIdSeq(pkt.espIdAndSeqenceNum);
+    uint32_t seqNum = seqFromIdSeq(pkt.espIdAndSeqenceNum);
 
     Serial.print(" -> Extracted ESP-ID: ");
     Serial.println(espId);

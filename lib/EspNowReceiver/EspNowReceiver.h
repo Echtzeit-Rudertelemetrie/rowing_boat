@@ -19,9 +19,11 @@ private:
     QueueHandle_t packetQueue;
 
     // Der Sender schickt jedes logische Paket PACKET_RETRIES-mal (identische
-    // seq). Hier deduplizieren wir per Board-ID (3-Bit-ID -> max 8), damit
-    // UART/BLE jedes Paket nur einmal bekommen.
-    static constexpr uint8_t MAX_BOARD_IDS = 8;
+    // seq). Hier deduplizieren wir per Board-ID, damit UART/BLE jedes Paket nur
+    // einmal bekommen. Groesse an die ID-Breite aus AppTypes.h gekoppelt: die
+    // ID indiziert diese Arrays direkt, ein zu kleines Array waere ein
+    // Schreibzugriff hinter das Ende — und das im ISR-Kontext.
+    static constexpr uint8_t MAX_BOARD_IDS = IDSEQ_ID_MASK + 1;
     volatile uint32_t lastSeqPerId[MAX_BOARD_IDS];
     volatile bool     seenPerId[MAX_BOARD_IDS];
 
