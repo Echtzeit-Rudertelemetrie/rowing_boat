@@ -206,8 +206,7 @@ void DataSender::sendData()
     // Ausgabe der Angle-Werte für teleplot(physikalisch, Grad)
    for (int i = 0; i < PACKET_VALUES; ++i)
 {
-     const float deg = ANGLE_MIN_DEG +
-                       angleBuffer[0] * ((ANGLE_MAX_DEG - ANGLE_MIN_DEG) / 65535.0f);
+     const float deg = angleBuffer[0] * ((ANGLE_MAX_DEG - ANGLE_MIN_DEG) / 65535.0f);
     Serial.printf(">winkel_q:%.2f\n", deg);
 }
 
