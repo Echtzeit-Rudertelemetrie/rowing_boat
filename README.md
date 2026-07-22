@@ -56,11 +56,12 @@ Open your environment, click **General**, then **Upload and Monitor**. (ctrl B (
 
 ## Paketformat & Quantisierung
 
-> **TODO / offen mit dem Team:** Dieser Branch (`sensor_miniesp_code`) weicht im
-> Paketformat von `main` ab. Vor Feldtests abstimmen — solange es abweicht,
-> verwirft der Hub die Pakete per Laengencheck und es kommt **nichts** an.
+> **TODO / offen mit dem Team:** `main` weicht seit dem Merge von
+> `sensor_miniesp_code` im Paketformat vom Hub-Design ab. Vor Feldtests
+> abstimmen — solange es abweicht, verwirft der Hub die Pakete per
+> Laengencheck und es kommt **nichts** an.
 
-Die Dolle sendet per ESP-NOW eine `MeasurementPack` (siehe `lib/AppTypesDolle/AppTypes.h`):
+Die Dolle sendet per ESP-NOW eine `MeasurementPack` (siehe `lib/AppTypes/AppTypes.h`):
 
 | Feld | Typ | Bedeutung |
 |---|---|---|
@@ -85,9 +86,9 @@ angle_deg = code / 65535.0 * 360.0 - 180.0;   // ANGLE_MIN_DEG = -180, ANGLE_MAX
 Aufloesung: Kraft 0.015 N, Winkel 0.0055°. Werte ausserhalb der Spanne werden
 senderseitig geklemmt (nicht gewrappt).
 
-### Offene Abstimmungspunkte gegenueber `main`
+### Offene Abstimmungspunkte gegenueber dem Hub-Design
 
-| Punkt | dieser Branch | `main` / Hub-Design |
+| Punkt | `main` (nach Merge) | Hub-Design |
 |---|---|---|
 | `PACKET_VALUES` | 32 (-> 132 Byte) | 20 (-> 84 Byte) |
 | ID/Seq-Kodierung | 3 Bit ID, `<< 29` | 4 Bit ID, `<< 28` (Entscheidung 2026-06-24) |
