@@ -1,9 +1,14 @@
 #include "UartReceiver.h"
 
 void UartReceiver::begin() {
-    // Beim XIAO sind die Pins D6 (TX) und D7 (RX) hardwaremäßig mit Serial1 verknüpft
-    Serial1.begin(UART_BAUD);
-    Serial.println("XIAO UART-Receiver initialisiert (Baud: 115200).");
+    // XIAO ESP32S3: Serial1 muss explizit auf die D6/D7-Pins gelegt werden
+    // (anders als beim nRF52840, wo D6/D7 fest mit Serial1 verdrahtet sind).
+    //   D7 = GPIO44 = RX  <- ESP32 GPIO17 (TX2)
+    //   D6 = GPIO43 = TX  -> ESP32 GPIO16 (RX2)
+    static constexpr int XIAO_UART_RX_PIN = 44;  // D7
+    static constexpr int XIAO_UART_TX_PIN = 43;  // D6
+    Serial1.begin(UART_BAUD, SERIAL_8N1, XIAO_UART_RX_PIN, XIAO_UART_TX_PIN);
+    Serial.println("XIAO ESP32S3 UART-Receiver initialisiert (Serial1 RX=44/D7 TX=43/D6, Baud: 115200).");
 }
 
 void UartReceiver::update() {

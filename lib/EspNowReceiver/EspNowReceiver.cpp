@@ -8,6 +8,10 @@ EspNowReceiver* EspNowReceiver::instance = nullptr;
 EspNowReceiver::EspNowReceiver() {
     // Queue für maximal 10 Pakete erstellen
     packetQueue = xQueueCreate(10, sizeof(MeasurementPack));
+    for (uint8_t i = 0; i < MAX_BOARD_IDS; ++i) {
+        lastSeqPerId[i] = 0;
+        seenPerId[i]    = false;
+    }
     instance = this;
 }
 
@@ -58,6 +62,20 @@ void EspNowReceiver::onDataRecv(const uint8_t *mac, const uint8_t *incomingData,
 #endif
 
     if (instance && instance->packetQueue) {
+        // ID/Seq aus den ersten 4 Bytes lesen (espIdAndSeqenceNum, little-endian):
+        // id = obere 3 Bit, seq = untere 29 Bit (identisch zur Sender-Kodierung).
+        uint32_t idAndSeq;
+        memcpy(&idAndSeq, incomingData, sizeof(idAndSeq));
+        const uint8_t  id  = static_cast<uint8_t>((idAndSeq >> 29) & 0x07u);
+        const uint32_t seq = idAndSeq & 0x1FFFFFFFu;
+
+        // Wiederholungen (PACKET_RETRIES) desselben logischen Pakets verwerfen.
+        if (instance->seenPerId[id] && instance->lastSeqPerId[id] == seq) {
+            return;
+        }
+        instance->seenPerId[id]    = true;
+        instance->lastSeqPerId[id] = seq;
+
         // Daten in die Queue kopieren (wichtig: FromISR, da wir uns im Wi-Fi Task befinden!)
         BaseType_t higherPriorityTaskWoken = pdFALSE;
         xQueueSendFromISR(instance->packetQueue, incomingData, &higherPriorityTaskWoken);

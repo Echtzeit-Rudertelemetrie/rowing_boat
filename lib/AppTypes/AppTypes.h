@@ -1,17 +1,16 @@
 #pragma once
 #include <Arduino.h>
 
-// TODO/ABSTIMMUNG: Team-main definiert PACKET_VALUES = 20 -> MeasurementPack =
-// 84 Bytes. Dieser Branch sendet mit 32 Werten 132 Bytes — der Empfaenger prueft
-// die Paketlaenge (len != sizeof) und verwirft alles, es kommt also NICHTS am
-// Hub an. Vorschlag: vor Feldtests auf 20 setzen (= main) und im selben Zug die
-// ID/Seq-Kodierung vereinheitlichen (siehe Kommentar in DataSender.cpp).
-#define PACKET_VALUES  32
-
 #define ESPNOW_MAX_BOARD_ID 255
 
 // Konfiguration ESP-NOW
 static constexpr uint8_t ESPNOW_CHANNEL = 11;
+// 32 Werte pro Paket -> MeasurementPack = 4 + 32*2 + 32*2 = 132 Bytes.
+// Muss mit dem Sender (Branch sensor_miniesp_code / DataSender) uebereinstimmen,
+// sonst verwirft der Empfaenger wegen Laengenpruefung (len != sizeof) alles.
+// Achtung: bei Aenderung auch BLE_ATT_MTU in lib/BleSender/BleSender.h anpassen
+// (MeasurementPack muss in eine BLE-Notification passen).
+static constexpr uint8_t PACKET_VALUES = 32;
 
 // Konfiguration UART
 static constexpr int UART2_RX_PIN = 16;
