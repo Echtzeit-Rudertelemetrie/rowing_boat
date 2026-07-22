@@ -13,12 +13,14 @@ void Sensor::begin() {
   if (!angleReader.begin()) {
     Serial.println("AngleReader: Sensor nicht gefunden - Winkel bleibt auf letztem Wert (0).");
   }
+
+  if (!forceReader.begin()) {
+    Serial.println("ForceReader: AD7124 nicht gefunden - Kraft bleibt 0.");
+  }
 }
 
 float Sensor::ReadForce() {
-  // DMS/Kraftsensor ist aktuell nicht angeschlossen -> Dummy-Wert.
-  //const int force = forceReader.sampleForce();
-  return (1.03234f * 2.3f) / 4095.0f;
+  return forceReader.sampleForce();
 }
 
 float Sensor::ReadAngle() {
