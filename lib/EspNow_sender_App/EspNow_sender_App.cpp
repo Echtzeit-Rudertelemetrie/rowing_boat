@@ -34,9 +34,8 @@ void EspNow_sender_App::begin() {
   // oft anzustossen wie Messwerte entstehen. Vorher hat AngleReader intern auf
   // 100 Hz begrenzt und bei 200-Hz-Ticks jeden zweiten Aufruf verworfen — jetzt
   // gibt der Timer die Abtastrate direkt vor: 1 Tick = 1 EKF-Schritt
-  // (siehe AngleReader::sampleAndCalculateAngle). Nebeneffekt: das 32-Werte-
-  // Paket enthaelt jetzt 32 echte Samples statt 16 doppelten, ein Paket deckt
-  // 320 ms ab (~3 Pakete/s).
+  // (siehe AngleReader::sampleAndCalculateAngle). Das 8-Werte-Paket enthaelt
+  // 8 echte Samples, deckt 80 ms ab und wird etwa 12,5-mal pro Sekunde gesendet.
   if (!timer_.begin(100)) {
     Serial.println("Timer konnte nicht gestartet werden.");
     while (true) {

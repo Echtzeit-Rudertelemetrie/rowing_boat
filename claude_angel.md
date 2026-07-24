@@ -22,7 +22,7 @@ Lag/Jitter erzeugen, keine glatte Exponentialkurve. Wurde per Messung bestätigt
 
 Die auskommentierte Schleife hatte drei Fehler:
 
-1. `sizeof(angleBuffer)` liefert **Bytes** (64), nicht Elemente (32) → Out-of-bounds.
+1. `sizeof(angleBuffer)` liefert **Bytes** (16), nicht Elemente (8) → Out-of-bounds.
 2. `%.2f` mit `uint16_t`-Argument → undefiniertes Verhalten (printf erwartet double).
 3. `angleBuffer` enthält **quantisierte Codes** (0…65535 für −180…+180°), keine Grad.
 

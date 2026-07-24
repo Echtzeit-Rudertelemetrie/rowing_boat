@@ -5,12 +5,12 @@
 
 // Konfiguration ESP-NOW
 static constexpr uint8_t ESPNOW_CHANNEL = 11;
-// 32 Werte pro Paket -> MeasurementPack = 4 + 32*2 + 32*2 = 132 Bytes.
+// 8 Werte pro Paket -> MeasurementPack = 4 + 8*2 + 8*2 = 36 Bytes.
 // Muss mit dem Sender (Branch sensor_miniesp_code / DataSender) uebereinstimmen,
 // sonst verwirft der Empfaenger wegen Laengenpruefung (len != sizeof) alles.
 // Achtung: bei Aenderung auch BLE_ATT_MTU in lib/BleSender/BleSender.h anpassen
 // (MeasurementPack muss in eine BLE-Notification passen).
-static constexpr uint8_t PACKET_VALUES = 32;
+static constexpr uint8_t PACKET_VALUES = 8;
 
 // Konfiguration UART
 static constexpr int UART2_RX_PIN = 16;

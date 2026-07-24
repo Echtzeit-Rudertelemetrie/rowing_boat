@@ -12,7 +12,7 @@
  *   IMU driver can replace SimData::imu() later without touching the wire format.
  *
  * Component code lives in lib/ (one folder per component, team convention):
- *   UartReceiver (lib/UartReceiver, [0xAA][0xBB] + MeasurementPack 132 B),
+ *   UartReceiver (lib/UartReceiver, [0xAA][0xBB] + MeasurementPack 36 B),
  *   Gps, Imu, SimData, BleSender (NimBLE).
  *
  * Packet id scheme (top 4 bits of espIdAndSeqenceNum):
@@ -51,7 +51,7 @@ static void blinkMarker(uint8_t times, unsigned ms) {
 }
 
 // Dump the full contents of a packet being broadcast: id 0 is decoded as GPS +
-// IMU telemetry, id 1..15 as the 32 force + 32 angle oarlock samples.
+// IMU telemetry, id 1..15 as the 8 force + 8 angle oarlock samples.
 static void printPack(const char* tag, const MeasurementPack& p) {
     const uint8_t  id  = idFromIdSeq(p.espIdAndSeqenceNum);
     const uint32_t seq = seqFromIdSeq(p.espIdAndSeqenceNum);

@@ -24,7 +24,7 @@ HubServerCallbacks g_serverCallbacks;
 
 bool BleSender::begin() {
     NimBLEDevice::init(DEVICE_NAME);
-    // Request a larger MTU so the 132-byte MeasurementPack fits one notification.
+    // Request an MTU that fits the 36-byte MeasurementPack in one notification.
     NimBLEDevice::setMTU(BLE_ATT_MTU);
 
     _server = NimBLEDevice::createServer();

@@ -73,7 +73,8 @@ Die Dolle sendet per ESP-NOW eine `MeasurementPack` (siehe `lib/AppTypes/AppType
 | `force_values` | `uint16[PACKET_VALUES]` | quantisierte Kraft |
 | `angle_values` | `uint16[PACKET_VALUES]` | quantisierter Winkel |
 
-Bei 100 Hz Abtastung und `PACKET_VALUES = 32` deckt ein Paket 320 ms ab (~3 Pakete/s).
+Bei 100 Hz Abtastung und `PACKET_VALUES = 8` deckt ein Paket 80 ms ab
+(~12,5 Pakete/s).
 
 ### Dequantisierung (Empfaengerseite)
 
@@ -90,5 +91,5 @@ angle_deg = code / 65535.0 * 360.0 - 180.0;   // ANGLE_MIN_DEG = -180, ANGLE_MAX
 Aufloesung: Kraft 0.015 N, Winkel 0.0055°. Werte ausserhalb der Spanne werden
 senderseitig geklemmt (nicht gewrappt).
 
-Das 132-Byte-Format mit 32 Wertepaaren und 4/28-Bit-ID-/Sequenzkodierung
+Das 36-Byte-Format mit 8 Wertepaaren und 4/28-Bit-ID-/Sequenzkodierung
 gilt durchgehend fuer Dolle, ESP-NOW-Empfaenger, BLE-Hub und App.

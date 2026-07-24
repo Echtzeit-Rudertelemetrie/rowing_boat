@@ -5,7 +5,7 @@
 #include "Imu.h"      // ImuData
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Synthetic example-data generator for the unified 132-byte MeasurementPack.
+// Synthetic example-data generator for the unified 36-byte MeasurementPack.
 // Reuses the real wire structs, so the produced bytes are guaranteed correct.
 //   gps()             -> simulated GpsData building block
 //   imu()             -> simulated ImuData building block (timestamp = millis())

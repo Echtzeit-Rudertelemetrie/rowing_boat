@@ -4,7 +4,7 @@
 #include "AppTypes.h" // MeasurementPack
 
 // BLE broadcast via NimBLE-Arduino (ESP32-S3, Seeed XIAO ESP32S3).
-// One GATT service, ONE NOTIFY characteristic carrying the shared 132-byte
+// One GATT service, ONE NOTIFY characteristic carrying the shared 36-byte
 // MeasurementPack. The top 4 bits of espIdAndSeqenceNum tell the client what's
 // inside (matches the shared packIdSeq helper):
 //   id 0      - telemetry (GPS), assembled locally on the hub
@@ -14,10 +14,8 @@
 //   packet   a1b2c3d4-0002-4a2b-9c3d-1234567890ab
 
 static constexpr uint8_t  BLE_MAX_CONN = 4;
-// Must fit MeasurementPack (132 B at PACKET_VALUES=32) + 3B ATT notify header.
-// ESP32/NimBLE handles large MTU fine; the phone negotiates min(this, its own).
-// iOS defaults to 185, modern Android up to 517, so 185 is safely negotiable.
-static constexpr uint16_t BLE_ATT_MTU  = 185;
+// Must fit MeasurementPack (36 B at PACKET_VALUES=8) + 3B ATT notify header.
+static constexpr uint16_t BLE_ATT_MTU  = 64;
 
 static_assert(sizeof(MeasurementPack) <= BLE_ATT_MTU - 3,
               "MeasurementPack must fit one notification (raise BLE_ATT_MTU or lower PACKET_VALUES)");

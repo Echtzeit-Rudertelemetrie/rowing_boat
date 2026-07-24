@@ -42,7 +42,7 @@ void loop() {
         Serial.printf("[RX] ESP-ID: %u | Seq: %lu -> Leite via UART weiter...\n", espId, static_cast<unsigned long>(seq));
 
         // Sender quantisiert 0..1000 N auf den kompletten uint16_t-Bereich.
-        // Fuer den Empfangstest alle 32 Samples wieder in Newton ausgeben.
+        // Fuer den Empfangstest alle 8 Samples wieder in Newton ausgeben.
         Serial.print("Kraft [N]: [");
         for (uint8_t i = 0; i < PACKET_VALUES; ++i) {
             const float forceN = incomingPack.force_values[i] * (1000.0f / 65535.0f);
