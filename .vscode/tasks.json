@@ -2,6 +2,21 @@
     "version": "2.0.0",
     "tasks": [
         {
+            "label": "BLE Hub: Upload + Monitor (auto port)",
+            "type": "shell",
+            "command": "python3",
+            "args": [
+                "${workspaceFolder}/scripts/upload_and_monitor.py",
+                "prod_BLE_sender"
+            ],
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always",
+                "panel": "dedicated",
+                "clear": true
+            }
+        },
+        {
             "label": "1) Flash Idle → USB1",
             "type": "shell",
             "command": "/home/eron/.platformio/penv/bin/platformio run -e test_idle -t upload --upload-port /dev/ttyUSB1",

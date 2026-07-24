@@ -54,6 +54,15 @@ Available environments:
 
 Open your environment, click **General**, then **Upload and Monitor**. (ctrl B (build) and then ctrl U (upload))
 
+Wenn mehrere serielle Geraete gleichzeitig angeschlossen sind, fuer den
+BLE-Hub die VS-Code-Task **BLE Hub: Upload + Monitor (auto port)** verwenden.
+Sie erkennt unter Linux und macOS den Hub-Port und uebergibt exakt denselben
+Port an Upload und Monitor. Alternativ:
+
+```sh
+python3 scripts/upload_and_monitor.py prod_BLE_sender
+```
+
 ## Paketformat & Quantisierung
 
 Die Dolle sendet per ESP-NOW eine `MeasurementPack` (siehe `lib/AppTypes/AppTypes.h`):
