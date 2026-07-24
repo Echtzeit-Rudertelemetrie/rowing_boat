@@ -52,7 +52,11 @@ ForceReader::ForceReader()
 , taraUV_(0)
 , taraSet_(false)
 , lastForce_(0)
-, startMs_(0) {
+, startMs_(0)
+, idleSinceMs_(0)
+, idleTiming_(false)
+, highSinceMs_(0)
+, highTiming_(false) {
 #if CONFIG_IDF_TARGET_ESP32S3
     spi_ = new SPIClass(FSPI);
 #else
@@ -154,7 +158,53 @@ float ForceReader::sampleForce() {
     float tared_uV = uV_avg - taraUV_;
     lastForce_ = tared_uV * UV_TO_N;   // Newton
 
-#if FORCE_READER_DEBUG
+    // Auto-Re-Tara gegen Drift: Nullpunkt nur nachziehen, wenn die Kraft
+    // laenger ununterbrochen im Drift-Zustand bleibt (nicht bei jedem
+    // einzelnen Ausschlag -> sonst Ratschen des Nullpunkts). Erst ab
+    // gesetztem Tara aktiv, damit die Auto-Tara nach begin() nicht stoert.
+    // Zwei unabhaengige Faelle mit eigenem Timer:
+    //   a) Ruhe/Negativdrift: alles UNTER der positiven Zug-Schwelle
+    //      AUTO_TARA_BAND_N (auch beliebig negativ).
+    //   b) Hoch-Drift: alles UEBER AUTO_TARA_MAX_N, also jenseits des in der
+    //      App darstellbaren Bereichs -> kann nur Drift sein. ACHTUNG: ein
+    //      echter, lange gehaltener Zug > MAX wuerde nach HIGH_HOLD ebenfalls
+    //      genullt -> Haltezeit ausreichend lang waehlen.
+    bool retara = false;
+
+    if (taraSet_ && lastForce_ < AUTO_TARA_BAND_N) {
+        if (!idleTiming_) {
+            idleTiming_  = true;
+            idleSinceMs_ = millis();
+        } else if (millis() - idleSinceMs_ >= AUTO_TARA_HOLD_MS) {
+            retara = true;
+        }
+    } else {
+        idleTiming_ = false;        // Zug/Ausreisser -> Ruhephase abgebrochen
+    }
+
+    if (taraSet_ && lastForce_ > AUTO_TARA_MAX_N) {
+        if (!highTiming_) {
+            highTiming_  = true;
+            highSinceMs_ = millis();
+        } else if (millis() - highSinceMs_ >= AUTO_TARA_HIGH_HOLD_MS) {
+            retara = true;
+        }
+    } else {
+        highTiming_ = false;        // wieder im Bereich -> Hoch-Drift abgebrochen
+    }
+
+    if (retara) {
+        taraUV_     = uV_avg;       // Nullpunkt auf aktuellen Mittelwert
+        lastForce_  = 0.0f;
+        idleTiming_ = false;        // beide Timer neu starten
+        highTiming_ = false;
+#ifdef FORCE_READER_DEBUG
+        // Teleplot-Marker: Spike genau im Moment des Nachtarens.
+        Serial.printf(">retara:1\n");
+#endif
+    }
+
+#ifdef FORCE_READER_DEBUG
     // Teleplot (">name:value"): Kraft in N + getarte uV (uV auch zur Kalibrierung).
     static uint32_t lastDbg = 0;
     if (millis() - lastDbg >= 50) {
