@@ -60,13 +60,32 @@ def first_existing(patterns):
     return None
 
 
+def update_monitor_link(base_name, target):
+    """Expose a stable path that PlatformIO can resolve before this script runs.
+
+    For combined upload+monitor tasks PlatformIO reads ``monitor_port`` before
+    executing pre-scripts. The configured path is therefore a stable symlink;
+    this script updates its target before the monitor process is launched.
+    """
+    link = Path(env.subst("$PROJECT_DIR")) / ".pio" / f"monitor-{base_name}"
+    link.parent.mkdir(parents=True, exist_ok=True)
+    if link.is_symlink() or link.exists():
+        link.unlink()
+    link.symlink_to(target)
+    return link
+
+
 system = platform.system()
 base = base_environment(ENVIRONMENT)
 patterns = LINUX_PORTS.get(base, []) if system == "Linux" else MACOS_PORTS.get(base, [])
 port = first_existing(patterns)
 
 if port:
-    env.Replace(UPLOAD_PORT=port, MONITOR_PORT=port)
-    print(f"Using {system} serial port for {ENVIRONMENT}: {port}")
+    monitor_link = update_monitor_link(base, port)
+    env.Replace(UPLOAD_PORT=port)
+    print(
+        f"Using {system} serial port for {ENVIRONMENT}: {port} "
+        f"(monitor: {monitor_link})"
+    )
 else:
     print(f"No configured {system} serial port found for {ENVIRONMENT}; using PlatformIO auto-detection")
