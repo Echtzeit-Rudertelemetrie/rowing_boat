@@ -15,9 +15,9 @@
  *   UartReceiver (lib/UartReceiver, [0xAA][0xBB] + MeasurementPack 132 B),
  *   Gps, Imu, SimData, BleSender (NimBLE).
  *
- * Packet id scheme (top 3 bits of espIdAndSeqenceNum, matches DataSender):
+ * Packet id scheme (top 4 bits of espIdAndSeqenceNum):
  *   id 0     -> telemetry: GpsData in force region, ImuData in angle region
- *   id 1..7  -> oarlock #id: force/angle as forwarded from UART
+ *   id 1..15 -> oarlock #id: force/angle as forwarded from UART
  */
 
 #include <Arduino.h>
@@ -25,6 +25,10 @@
 #include "Gps.h"
 #include "SimData.h"
 #include "BleSender.h"
+
+#ifndef BLE_SERIAL_DUMP
+#define BLE_SERIAL_DUMP 0
+#endif
 
 static UartReceiver receiver;
 static Gps          gps;
@@ -47,10 +51,10 @@ static void blinkMarker(uint8_t times, unsigned ms) {
 }
 
 // Dump the full contents of a packet being broadcast: id 0 is decoded as GPS +
-// IMU telemetry, id 1..7 as the 32 force + 32 angle oarlock samples.
+// IMU telemetry, id 1..15 as the 32 force + 32 angle oarlock samples.
 static void printPack(const char* tag, const MeasurementPack& p) {
-    const uint8_t  id  = (p.espIdAndSeqenceNum >> 29) & 0x07u;
-    const uint32_t seq =  p.espIdAndSeqenceNum & 0x1FFFFFFFu;
+    const uint8_t  id  = idFromIdSeq(p.espIdAndSeqenceNum);
+    const uint32_t seq = seqFromIdSeq(p.espIdAndSeqenceNum);
 
     if (id == 0) {
         GpsData g{};
@@ -111,7 +115,9 @@ void loop() {
     if (receiver.isNewDataAvailable()) {
         MeasurementPack data = receiver.getLatestPacket();
         ble.notifyMeasurement(data);
+#if BLE_SERIAL_DUMP
         printPack("RX->BLE", data);
+#endif
     }
 
     unsigned long now = millis();
@@ -121,7 +127,7 @@ void loop() {
     if (now - lastTelem >= TELEM_INTERVAL_MS) {
         lastTelem = now;
         MeasurementPack pkt{};
-        pkt.espIdAndSeqenceNum = telemSeq++ & 0x1FFFFFFFu;   // id 0 (telemetry) | 29-bit seq
+        pkt.espIdAndSeqenceNum = packIdSeq(0, telemSeq++);
 
         GpsData g   = gps.data();
         ImuData imu = sim.imu();                              // central IMU, simulated for now
@@ -131,7 +137,9 @@ void loop() {
         memcpy(pkt.angle_values, &imu, sizeof(imu));
 
         ble.notifyMeasurement(pkt);
+#if BLE_SERIAL_DUMP
         printPack("TX", pkt);
+#endif
     }
 
     // 1 Hz serial status + LED heartbeat (proves loop() is alive even with serial dead).

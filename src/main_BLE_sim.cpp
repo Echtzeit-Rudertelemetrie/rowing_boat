@@ -24,8 +24,8 @@ static inline void ledSet(bool on) { digitalWrite(LED_BUILTIN, on ? LOW : HIGH);
 
 static void dumpHex(const char* tag, const MeasurementPack& p) {
     const uint8_t* b = (const uint8_t*)&p;
-    const uint8_t  id  = (p.espIdAndSeqenceNum >> 29) & 0x07u;
-    const uint32_t seq =  p.espIdAndSeqenceNum & 0x1FFFFFFFu;
+    const uint8_t  id  = idFromIdSeq(p.espIdAndSeqenceNum);
+    const uint32_t seq = seqFromIdSeq(p.espIdAndSeqenceNum);
     Serial.printf("%s id=%u seq=%lu: ", tag, id, (unsigned long)seq);
     for (size_t i = 0; i < sizeof(p); i++) Serial.printf("%02X", b[i]);
     Serial.println();

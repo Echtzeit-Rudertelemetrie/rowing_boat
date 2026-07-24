@@ -56,16 +56,11 @@ Open your environment, click **General**, then **Upload and Monitor**. (ctrl B (
 
 ## Paketformat & Quantisierung
 
-> **TODO / offen mit dem Team:** `main` weicht seit dem Merge von
-> `sensor_miniesp_code` im Paketformat vom Hub-Design ab. Vor Feldtests
-> abstimmen — solange es abweicht, verwirft der Hub die Pakete per
-> Laengencheck und es kommt **nichts** an.
-
 Die Dolle sendet per ESP-NOW eine `MeasurementPack` (siehe `lib/AppTypes/AppTypes.h`):
 
 | Feld | Typ | Bedeutung |
 |---|---|---|
-| `espIdAndSeqenceNum` | `uint32` | 3 Bit ID (`<< 29`) \| 29 Bit Sequenznummer |
+| `espIdAndSeqenceNum` | `uint32` | 4 Bit ID (`<< 28`) \| 28 Bit Sequenznummer |
 | `force_values` | `uint16[PACKET_VALUES]` | quantisierte Kraft |
 | `angle_values` | `uint16[PACKET_VALUES]` | quantisierter Winkel |
 
@@ -86,10 +81,5 @@ angle_deg = code / 65535.0 * 360.0 - 180.0;   // ANGLE_MIN_DEG = -180, ANGLE_MAX
 Aufloesung: Kraft 0.015 N, Winkel 0.0055°. Werte ausserhalb der Spanne werden
 senderseitig geklemmt (nicht gewrappt).
 
-### Offene Abstimmungspunkte gegenueber dem Hub-Design
-
-| Punkt | `main` (nach Merge) | Hub-Design |
-|---|---|---|
-| `PACKET_VALUES` | 32 (-> 132 Byte) | 20 (-> 84 Byte) |
-| ID/Seq-Kodierung | 3 Bit ID, `<< 29` | 4 Bit ID, `<< 28` (Entscheidung 2026-06-24) |
-| Dequantisierung | siehe oben | noch nicht dokumentiert |
+Das 132-Byte-Format mit 32 Wertepaaren und 4/28-Bit-ID-/Sequenzkodierung
+gilt durchgehend fuer Dolle, ESP-NOW-Empfaenger, BLE-Hub und App.

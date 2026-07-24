@@ -38,9 +38,11 @@ static const float FS   = 8388608.0f;   // ADC-Vollausschlag (2^23)
 //   6. FORCE_READER_DEBUG auskommentieren, neu flashen -> Normalbetrieb.
 static const float UV_TO_N = 1.0f;   // TODO: mit bekannter Last kalibrieren!
 
-// Teleplot-Ausgabe (>kraft_N / >tara_uV) fuer Bring-up/Kalibrierung.
-// Fuer den Normalbetrieb auskommentieren.
-#define FORCE_READER_DEBUG
+// Teleplot output (>kraft_N / >tara_uV) for bring-up/calibration. Production
+// builds keep this off because USB-CDC writes can stall the 100-Hz event loop.
+#ifndef FORCE_READER_DEBUG
+#define FORCE_READER_DEBUG 0
+#endif
 
 ForceReader::ForceReader()
 : spi_(nullptr)
@@ -152,7 +154,7 @@ float ForceReader::sampleForce() {
     float tared_uV = uV_avg - taraUV_;
     lastForce_ = tared_uV * UV_TO_N;   // Newton
 
-#ifdef FORCE_READER_DEBUG
+#if FORCE_READER_DEBUG
     // Teleplot (">name:value"): Kraft in N + getarte uV (uV auch zur Kalibrierung).
     static uint32_t lastDbg = 0;
     if (millis() - lastDbg >= 50) {

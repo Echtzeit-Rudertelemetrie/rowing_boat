@@ -4,11 +4,11 @@
 #include "AppTypes.h" // MeasurementPack
 
 // BLE broadcast via NimBLE-Arduino (ESP32-S3, Seeed XIAO ESP32S3).
-// One GATT service, ONE NOTIFY characteristic carrying the shared 84-byte
-// MeasurementPack. The top 3 bits of espIdAndSeqenceNum tell the client what's
-// inside (matches DataSender's ESP_ID<<29 layout):
+// One GATT service, ONE NOTIFY characteristic carrying the shared 132-byte
+// MeasurementPack. The top 4 bits of espIdAndSeqenceNum tell the client what's
+// inside (matches the shared packIdSeq helper):
 //   id 0      - telemetry (GPS), assembled locally on the hub
-//   id 1..7   - oarlock data forwarded from UART
+//   id 1..15  - oarlock data forwarded from UART
 // 128-bit UUIDs:
 //   service  a1b2c3d4-0001-4a2b-9c3d-1234567890ab
 //   packet   a1b2c3d4-0002-4a2b-9c3d-1234567890ab

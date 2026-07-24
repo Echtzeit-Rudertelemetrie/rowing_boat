@@ -3,6 +3,10 @@
 #include "EspNowReceiver.h"
 #include "UartForwarder.h"
 
+#ifndef ESPNOW_RECEIVER_SERIAL_DUMP
+#define ESPNOW_RECEIVER_SERIAL_DUMP 0
+#endif
+
 // Instanzen unserer Klassen
 EspNowReceiver espReceiver;
 UartForwarder uartBridge;
@@ -30,10 +34,25 @@ void loop() {
     // 1. Prüfen, ob ein neues Paket via ESP-NOW reingekommen ist
     if (espReceiver.getPacket(incomingPack)) {
         
-        // --- Debug Ausgabe auf USB ---
-        const uint8_t espId = static_cast<uint8_t>((incomingPack.espIdAndSeqenceNum >> 29) & 0x07u);
-        const uint32_t seq  = incomingPack.espIdAndSeqenceNum & 0x1FFFFFFFu;
+#if ESPNOW_RECEIVER_SERIAL_DUMP
+        // Optional packet dump. Disabled in production so USB logging cannot
+        // delay draining the ESP-NOW queue.
+        const uint8_t espId = idFromIdSeq(incomingPack.espIdAndSeqenceNum);
+        const uint32_t seq  = seqFromIdSeq(incomingPack.espIdAndSeqenceNum);
         Serial.printf("[RX] ESP-ID: %u | Seq: %lu -> Leite via UART weiter...\n", espId, static_cast<unsigned long>(seq));
+
+        // Sender quantisiert 0..1000 N auf den kompletten uint16_t-Bereich.
+        // Fuer den Empfangstest alle 32 Samples wieder in Newton ausgeben.
+        Serial.print("Kraft [N]: [");
+        for (uint8_t i = 0; i < PACKET_VALUES; ++i) {
+            const float forceN = incomingPack.force_values[i] * (1000.0f / 65535.0f);
+            Serial.print(forceN, 2);
+            if (i + 1 < PACKET_VALUES) {
+                Serial.print(", ");
+            }
+        }
+        Serial.println("]");
+#endif
 
         // 2. Paket unverändert via UART2 an den XIAO weiterleiten
         uartBridge.forwardPacket(incomingPack);

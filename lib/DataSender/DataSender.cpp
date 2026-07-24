@@ -9,6 +9,10 @@
 #define DATASENDER_DEBUG_DUMP 0
 #endif
 
+#ifndef DATASENDER_TELEPLOT
+#define DATASENDER_TELEPLOT 0
+#endif
+
 constexpr std::uint8_t BROADCAST_MAC[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
 std::uint16_t forceBuffer[PACKET_VALUES]{};
@@ -197,12 +201,17 @@ void DataSender::sendData()
         Serial.println("Peer was not added");
     }
 
-    // Ausgabe der Angle-Werte für teleplot(physikalisch, Grad)
-   for (int i = 0; i < PACKET_VALUES; ++i)
-{
-     const float deg = angleBuffer[0] * ((ANGLE_MAX_DEG - ANGLE_MIN_DEG) / 65535.0f);
-    Serial.printf(">winkel_q:%.2f\n", deg);
-}
+#if DATASENDER_TELEPLOT
+    // Optional Teleplot output. Keep disabled in production: USB-CDC writes can
+    // block the 100-Hz task when no monitor consumes them.
+    for (int i = 0; i < PACKET_VALUES; ++i)
+    {
+        const float deg =
+            angleBuffer[i] * ((ANGLE_MAX_DEG - ANGLE_MIN_DEG) / 65535.0f) +
+            ANGLE_MIN_DEG;
+        Serial.printf(">winkel_q:%.2f\n", deg);
+    }
+#endif
 
 #if DATASENDER_DEBUG_DUMP
     // peerAdded=false: esp_now_send() lief oben gar nicht -> Paketinhalt ist

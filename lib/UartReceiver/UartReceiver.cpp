@@ -12,6 +12,12 @@ void UartReceiver::begin() {
 }
 
 void UartReceiver::update() {
+    // Das zuletzt empfangene Paket erst vom Hauptloop abholen lassen. So kann
+    // ein Burst im UART-Puffer latestPacket nicht unbemerkt überschreiben.
+    if (newData) {
+        return;
+    }
+
     // Solange Daten im UART-Puffer liegen, Byte für Byte abarbeiten
     while (Serial1.available() > 0) {
         uint8_t incomingByte = Serial1.read();
@@ -50,7 +56,11 @@ void UartReceiver::update() {
                     state = RxState::WAIT_HEADER_1; // Zurücksetzen für das nächste Paket
                     
                     // Optional: Rückmeldung an den ESP32 senden (checkIncoming liest das aus)
-                    Serial1.println("OK"); 
+                    Serial1.println("OK");
+
+                    // Verbleibende Bytes bleiben bis zum nächsten loop()-Durchlauf
+                    // im UART-Puffer; das fertige Paket hat damit Vorrang.
+                    return;
                 }
                 break;
         }
