@@ -17,6 +17,7 @@
 #define REG_DATA     0x02
 #define REG_ID       0x05
 #define REG_CH0      0x09
+#define REG_CH1      0x0A
 #define REG_CONFIG0  0x19
 #define REG_FILTER0  0x21
 
@@ -28,40 +29,65 @@ static const float PGA  = 128.0f;
 static const float FS   = 8388608.0f;   // ADC-Vollausschlag (2^23)
 
 // ==================== KALIBRIERUNG (getarte uV -> Newton) ====================
-// EINMALIG mit bekannter Last bestimmen:
+// PRO DMS EINMALIG mit bekannter Last bestimmen (beide DMS getrennt, da
+// verschiedene Bruecken/Klebestellen leicht unterschiedlich empfindlich sind):
 //   1. FORCE_READER_DEBUG unten aktiviert lassen, Firmware flashen.
 //   2. Zelle OHNE Last booten, >2 s warten (Auto-Tara nullt) -> Teleplot
-//      zeigt "tara_uV" ~ 0.
+//      zeigt "tara0_uV" und "tara1_uV" ~ 0.
 //   3. Bekannte Masse m anhaengen -> Kraft F = m * 9.81  (z.B. 1 kg -> 9.81 N).
-//   4. Stabilen "tara_uV"-Wert V ablesen (Mikrovolt, mit Vorzeichen).
-//   5. UV_TO_N = F / V  hier eintragen (Newton pro Mikrovolt).
+//   4. Stabile Werte V0/V1 ("tara0_uV"/"tara1_uV", Mikrovolt, mit Vorzeichen)
+//      ablesen.
+//   5. UV_TO_N_CH0 = F / V0 und UV_TO_N_CH1 = F / V1 hier eintragen.
 //   6. FORCE_READER_DEBUG auskommentieren, neu flashen -> Normalbetrieb.
-static const float UV_TO_N = 1.0f;   // TODO: mit bekannter Last kalibrieren!
+// HINWEIS: Ist ein DMS gegensinnig aufgeklebt (Ausschlag mit umgekehrtem
+// Vorzeichen), ergibt sich der jeweilige UV_TO_N automatisch negativ -> beide
+// Kanaele zeigen dann trotzdem dieselbe (positive) Zugkraft.
+static const float UV_TO_N_CH0 = 1.0f;   // TODO: DMS 0 mit bekannter Last kalibrieren!
+static const float UV_TO_N_CH1 = 1.0f;   // TODO: DMS 1 mit bekannter Last kalibrieren!
 
-// Teleplot output (>kraft_N / >tara_uV) for bring-up/calibration. Production
+// Teleplot output (>kraft_N / >tara?_uV) for bring-up/calibration. Production
 // builds keep this off because USB-CDC writes can stall the 100-Hz event loop.
 #ifndef FORCE_READER_DEBUG
 #define FORCE_READER_DEBUG 0
 #endif
 
+float ForceReader::Channel::movingAvg(float v) {
+    avgSum -= avgBuf[avgIdx];
+    avgBuf[avgIdx] = v;
+    avgSum += v;
+    avgIdx = (avgIdx + 1) % AVG_SIZE;
+    return avgSum / AVG_SIZE;
+}
+
 ForceReader::ForceReader()
 : spi_(nullptr)
-, avgBuf_{0}
-, avgIdx_(0)
-, avgSum_(0)
-, taraUV_(0)
-, taraSet_(false)
-, lastForce_(0)
+, ch_{}
 , startMs_(0)
-, idleSinceMs_(0)
-, idleTiming_(false)
-, highSinceMs_(0)
-, highTiming_(false) {
+, combinedForce_(0)
+, seqCh_(0) {
 #if CONFIG_IDF_TARGET_ESP32S3
     spi_ = new SPIClass(FSPI);
 #else
     spi_ = new SPIClass(VSPI);
 #endif
+    // Pro-Kanal-Zustand nullen und je DMS die eigene Kalibrierung setzen.
+    for (uint8_t i = 0; i < NUM_CH; i++) {
+        for (uint16_t k = 0; k < Channel::AVG_SIZE; k++) ch_[i].avgBuf[k] = 0.0f;
+        ch_[i].avgIdx      = 0;
+        ch_[i].avgSum      = 0.0f;
+        ch_[i].taraUV      = 0.0f;
+        ch_[i].taraSet     = false;
+        ch_[i].lastForce   = 0.0f;
+        ch_[i].rawUV       = 0.0f;
+        ch_[i].taredUV     = 0.0f;
+        ch_[i].nSamples    = 0;
+        ch_[i].idleSinceMs = 0;
+        ch_[i].idleTiming  = false;
+        ch_[i].highSinceMs = 0;
+        ch_[i].highTiming  = false;
+    }
+    ch_[0].uvToN = UV_TO_N_CH0;
+    ch_[1].uvToN = UV_TO_N_CH1;
 }
 
 // ==================== SPI-HELFER ====================
@@ -95,14 +121,6 @@ void ForceReader::reset() {
     delay(10);
 }
 
-float ForceReader::movingAvg(float v) {
-    avgSum_ -= avgBuf_[avgIdx_];
-    avgBuf_[avgIdx_] = v;
-    avgSum_ += v;
-    avgIdx_ = (avgIdx_ + 1) % AVG_SIZE;
-    return avgSum_ / AVG_SIZE;
-}
-
 // ==================== OEFFENTLICHE API ====================
 bool ForceReader::begin() {
     pinMode(PIN_CS, OUTPUT);
@@ -117,101 +135,163 @@ bool ForceReader::begin() {
     uint32_t id = readReg(REG_ID, 1);
     Serial.printf("AD7124 ID: 0x%02X\n", id);
 
-    writeReg(REG_ADC_CTRL, 0x0180, 2);
+    // WICHTIG: erst KONFIGURIEREN, dann Wandlung starten. Nach dem Reset laeuft
+    // der AD7124 sofort in Continuous Conversion -> Kanal-/Config-Register erst
+    // in STANDBY (MODE=2, Bits[5:2]=0b0010 -> 0x08) schreiben.
+    //   0x0188 = REF_EN(0x100) | POWER_MODE=full(0x80) | MODE=standby(0x08)
+    // KEIN DATA_STATUS: das an DATA angehaengte Byte ist auf diesem Chip NICHT der
+    // Kanal-Tag (Messung: konstant 0x01), und auch das STATUS-Kanalfeld bleibt
+    // konstant 0. Der ADC sequenziert die aktiven Kanaele aber deterministisch
+    // (0,1,0,1,...) -> die Zuordnung erfolgt per Parity-Zaehler in sampleForce().
+    writeReg(REG_ADC_CTRL, 0x0188, 2);
+
     // CONFIG0 = 0x087F: bipolar, AIN-Buffer an, REF_SEL=AVDD (ratiometrisch,
-    // VREF=3,3 V -> Bruecke aus 3,3 V speisen!), PGA=128 (Bereich +/-25,8 mV).
+    // VREF=3,3 V -> Bruecken aus 3,3 V speisen!), PGA=128 (Bereich +/-25,8 mV).
+    // Beide Kanaele teilen sich dieses Setup 0 (gleicher DMS-Typ/Bereich).
     writeReg(REG_CONFIG0, 0x087F, 2);
-    // FILTER0 = 0x060180: Sinc4-Filter, FS=0x180 -> ~50 SPS.
-    writeReg(REG_FILTER0, 0x060180, 3);
+    // FILTER0 = 0x060080: Sinc4-Filter, FS=0x080 (vorher 0x180). Hoehere
+    // Datenrate, damit bei zwei Kanaelen (jeder Kanalwechsel kostet volles
+    // Sinc4-Einschwingen) genug Wandlungen pro Kanal fuer eine flotte Reaktion
+    // ankommen. Gegen das dadurch etwas hoehere Rauschen mittelt AVG_SIZE.
+    writeReg(REG_FILTER0, 0x060080, 3);
+    // DMS 0 -> AIN0/AIN1 (0x8001), DMS 1 -> AIN2/AIN3 (0x8043); beide Setup 0.
     writeReg(REG_CH0, 0x8001, 2);
+    writeReg(REG_CH1, 0x8043, 2);
+
+    // Jetzt erst Continuous Conversion starten (MODE=0).
+    //   0x0180 = REF_EN(0x100) | POWER_MODE=full(0x80), MODE=continuous(0)
+    // Die erste Wandlung nach dem Start ist Kanal 0 -> Parity-Zaehler = 0.
+    writeReg(REG_ADC_CTRL, 0x0180, 2);
+    seqCh_ = 0;
 
     delay(100);
     startMs_ = millis();
+
+#if FORCE_READER_DEBUG
+    // Register zuruecklesen: steht Continuous (CTRL=0x0180) und sind BEIDE
+    // Kanaele aktiv (CH0=0x8001, CH1=0x8043)? HINWEIS: der Readback verschluckt
+    // beim Lesen das LSB (0x8001 liest 0x8000) -> ein reiner Lese-Artefakt, die
+    // Writes selbst stimmen (beide Kanaele liefern ihr eigenes Differenzsignal).
+    uint32_t ctrl = readReg(REG_ADC_CTRL, 2);
+    uint32_t c0   = readReg(REG_CH0, 2);
+    uint32_t c1   = readReg(REG_CH1, 2);
+    Serial.printf("AD7124 cfg: CTRL=0x%04X CH0=0x%04X CH1=0x%04X\n", ctrl, c0, c1);
+#endif
 
     // ID != 0x00/0xFF => der Chip antwortet ueber SPI.
     return (id != 0x00 && id != 0xFF);
 }
 
 void ForceReader::tara() {
-    taraUV_  = avgSum_ / AVG_SIZE;
-    taraSet_ = true;
+    for (uint8_t i = 0; i < NUM_CH; i++) {
+        ch_[i].taraUV  = ch_[i].avgSum / Channel::AVG_SIZE;
+        ch_[i].taraSet = true;
+    }
 }
 
-float ForceReader::sampleForce() {
-    uint32_t status = readReg(REG_STATUS, 1);
-    if (status & 0x80) {          // /RDY: Wandlung noch nicht fertig
-        return lastForce_;        // letzten gueltigen Wert weiterreichen
+float ForceReader::forceChannel(uint8_t ch) const {
+    return (ch < NUM_CH) ? ch_[ch].lastForce : 0.0f;
+}
+
+float ForceReader::drift() const {
+    return ch_[0].lastForce - ch_[1].lastForce;
+}
+
+// Einen frisch gewandelten Rohwert (in uV) fuer Kanal idx einarbeiten:
+// gleitender Mittelwert, Tara und Auto-Re-Tara gegen Drift -- alles pro DMS.
+void ForceReader::processSample(uint8_t idx, float uV) {
+    Channel& c = ch_[idx];
+    c.nSamples++;
+
+    float uV_avg = c.movingAvg(uV);
+    c.rawUV = uV_avg;   // roher Wert vor Tara -> reagiert ungeschoent auf Kabel
+
+    // Auto-Tara 2 s nach begin(), falls fuer diesen Kanal noch nicht gesetzt.
+    if (!c.taraSet && (millis() - startMs_) > 2000) {
+        c.taraUV  = uV_avg;
+        c.taraSet = true;
     }
 
-    uint32_t data = readReg(REG_DATA, 3);
-    int32_t  raw  = (int32_t)data - 0x800000;
-
-    float uV     = (raw * VREF * 1e6f) / (PGA * FS);
-    float uV_avg = movingAvg(uV);
-
-    // Auto-Tara 2 s nach begin(), falls noch nicht gesetzt.
-    if (!taraSet_ && (millis() - startMs_) > 2000) {
-        taraUV_  = uV_avg;
-        taraSet_ = true;
-    }
-
-    float tared_uV = uV_avg - taraUV_;
-    lastForce_ = tared_uV * UV_TO_N;   // Newton
+    c.taredUV   = uV_avg - c.taraUV;
+    c.lastForce = c.taredUV * c.uvToN;   // Newton
 
     // Auto-Re-Tara gegen Drift: Nullpunkt nur nachziehen, wenn die Kraft
     // laenger ununterbrochen im Drift-Zustand bleibt (nicht bei jedem
     // einzelnen Ausschlag -> sonst Ratschen des Nullpunkts). Erst ab
     // gesetztem Tara aktiv, damit die Auto-Tara nach begin() nicht stoert.
     // Zwei unabhaengige Faelle mit eigenem Timer:
-    //   a) Ruhe/Negativdrift: alles UNTER der positiven Zug-Schwelle
-    //      AUTO_TARA_BAND_N (auch beliebig negativ).
-    //   b) Hoch-Drift: alles UEBER AUTO_TARA_MAX_N, also jenseits des in der
-    //      App darstellbaren Bereichs -> kann nur Drift sein. ACHTUNG: ein
-    //      echter, lange gehaltener Zug > MAX wuerde nach HIGH_HOLD ebenfalls
-    //      genullt -> Haltezeit ausreichend lang waehlen.
+    //   a) Ruhe/Negativdrift: alles UNTER der positiven Zug-Schwelle.
+    //   b) Hoch-Drift: alles UEBER AUTO_TARA_MAX_N (jenseits des App-Bereichs).
     bool retara = false;
 
-    if (taraSet_ && lastForce_ < AUTO_TARA_BAND_N) {
-        if (!idleTiming_) {
-            idleTiming_  = true;
-            idleSinceMs_ = millis();
-        } else if (millis() - idleSinceMs_ >= AUTO_TARA_HOLD_MS) {
+    if (c.taraSet && c.lastForce < AUTO_TARA_BAND_N) {
+        if (!c.idleTiming) {
+            c.idleTiming  = true;
+            c.idleSinceMs = millis();
+        } else if (millis() - c.idleSinceMs >= AUTO_TARA_HOLD_MS) {
             retara = true;
         }
     } else {
-        idleTiming_ = false;        // Zug/Ausreisser -> Ruhephase abgebrochen
+        c.idleTiming = false;       // Zug/Ausreisser -> Ruhephase abgebrochen
     }
 
-    if (taraSet_ && lastForce_ > AUTO_TARA_MAX_N) {
-        if (!highTiming_) {
-            highTiming_  = true;
-            highSinceMs_ = millis();
-        } else if (millis() - highSinceMs_ >= AUTO_TARA_HIGH_HOLD_MS) {
+    if (c.taraSet && c.lastForce > AUTO_TARA_MAX_N) {
+        if (!c.highTiming) {
+            c.highTiming  = true;
+            c.highSinceMs = millis();
+        } else if (millis() - c.highSinceMs >= AUTO_TARA_HIGH_HOLD_MS) {
             retara = true;
         }
     } else {
-        highTiming_ = false;        // wieder im Bereich -> Hoch-Drift abgebrochen
+        c.highTiming = false;       // wieder im Bereich -> Hoch-Drift abgebrochen
     }
 
     if (retara) {
-        taraUV_     = uV_avg;       // Nullpunkt auf aktuellen Mittelwert
-        lastForce_  = 0.0f;
-        idleTiming_ = false;        // beide Timer neu starten
-        highTiming_ = false;
-#if FORCE_READER_DEBUG
-        // Teleplot-Marker: Spike genau im Moment des Nachtarens.
-        Serial.printf(">retara:1\n");
-#endif
+        c.taraUV     = uV_avg;      // Nullpunkt auf aktuellen Mittelwert
+        c.lastForce  = 0.0f;
+        c.idleTiming = false;       // beide Timer neu starten
+        c.highTiming = false;
+    }
+}
+
+float ForceReader::sampleForce() {
+    uint32_t status = readReg(REG_STATUS, 1);
+    if (status & 0x80) {          // /RDY: Wandlung noch nicht fertig
+        return combinedForce_;    // letzten gueltigen Wert weiterreichen
     }
 
+    // 3 Datenbytes lesen. Der ADC sequenziert die aktiven Kanaele fest der Reihe
+    // nach (0,1,0,1,...); da kein brauchbarer Hardware-Kanal-Tag existiert, wird
+    // die Zuordnung ueber den Parity-Zaehler seqCh_ mitgefuehrt. Das haelt, solange
+    // keine Wandlung verpasst wird -> der Event-Loop pollt schneller (~100 Hz) als
+    // der ADC neue Werte liefert (~20-40 ms je Wandlung).
+    uint32_t data  = readReg(REG_DATA, 3);
+    int32_t  raw   = (int32_t)data - 0x800000;
+
+    float uV = (raw * VREF * 1e6f) / (PGA * FS);
+
+    uint8_t chTag = seqCh_;
+    seqCh_ = (seqCh_ + 1) % NUM_CH;
+
+    processSample(chTag, uV);
+
+    // Beide DMS messen dieselbe Kraft am selben Metallstueck -> Mittelung senkt
+    // das Rauschen (~sqrt(2)). Solange ein Kanal noch keinen Wert hatte, ist
+    // dessen lastForce 0; nach wenigen Wandlungen sind beide gefuellt.
+    combinedForce_ = 0.5f * (ch_[0].lastForce + ch_[1].lastForce);
+
 #if FORCE_READER_DEBUG
-    // Teleplot (">name:value"): Kraft in N + getarte uV (uV auch zur Kalibrierung).
+    // Teleplot (">name:value"): kombinierte Kraft, Einzelkraefte, Drift und die
+    // getarten uV je Kanal (tara?_uV zur Kalibrierung). Bewusst nur ~10 Hz und
+    // wenige Signale: USB-CDC-Writes bremsen sonst den Event-Loop und lassen
+    // Teleplot laggen.
     static uint32_t lastDbg = 0;
-    if (millis() - lastDbg >= 50) {
+    if (millis() - lastDbg >= 100) {
         lastDbg = millis();
-        Serial.printf(">kraft_N:%.3f\n>tara_uV:%.2f\n", lastForce_, tared_uV);
+        Serial.printf(">kraft_N:%.3f\n>kraft0_N:%.3f\n>kraft1_N:%.3f\n>drift_N:%.3f\n",
+                      combinedForce_, ch_[0].lastForce, ch_[1].lastForce, drift());
     }
 #endif
 
-    return lastForce_;
+    return combinedForce_;
 }

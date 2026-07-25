@@ -204,10 +204,12 @@ void DataSender::sendData()
 #if DATASENDER_TELEPLOT
     // Optional Teleplot output. Keep disabled in production: USB-CDC writes can
     // block the 100-Hz task when no monitor consumes them.
-    for (int i = 0; i < PACKET_VALUES; ++i)
+    // Nur EIN Winkelwert pro Paket (das neueste Sample, Index PACKET_VALUES-1):
+    // alle 8 auszugeben flutet den USB-CDC (~100 Zeilen/s) und laesst Teleplot
+    // laggen. Fuer den langsamen Ruderwinkel reicht die Paketrate (~13 Hz).
     {
         const float deg =
-            angleBuffer[i] * ((ANGLE_MAX_DEG - ANGLE_MIN_DEG) / 65535.0f) +
+            angleBuffer[PACKET_VALUES - 1] * ((ANGLE_MAX_DEG - ANGLE_MIN_DEG) / 65535.0f) +
             ANGLE_MIN_DEG;
         Serial.printf(">winkel_q:%.2f\n", deg);
     }
