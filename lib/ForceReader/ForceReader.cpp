@@ -198,13 +198,13 @@ float ForceReader::sampleForce() {
         lastForce_  = 0.0f;
         idleTiming_ = false;        // beide Timer neu starten
         highTiming_ = false;
-#ifdef FORCE_READER_DEBUG
+#if FORCE_READER_DEBUG
         // Teleplot-Marker: Spike genau im Moment des Nachtarens.
         Serial.printf(">retara:1\n");
 #endif
     }
 
-#ifdef FORCE_READER_DEBUG
+#if FORCE_READER_DEBUG
     // Teleplot (">name:value"): Kraft in N + getarte uV (uV auch zur Kalibrierung).
     static uint32_t lastDbg = 0;
     if (millis() - lastDbg >= 50) {
