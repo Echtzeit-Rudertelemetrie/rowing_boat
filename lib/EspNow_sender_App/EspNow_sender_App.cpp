@@ -54,6 +54,26 @@ void EspNow_sender_App::run() {
     // Dadurch wird nicht aktiv gespammt oder in einer Busy-Wait-Schleife rotiert.
     if (eventQueue_.pop(event, portMAX_DELAY)) {
       handleEvent(event);
+      const uint32_t depth = eventQueue_.messagesWaiting();
+      if (depth > maxQueueDepth_) maxQueueDepth_ = depth;
+#if ANGLEREADER_PROFILING
+      const uint32_t nowMs = millis();
+      if (static_cast<uint32_t>(nowMs - lastTimingReportMs_) >= 5000U) {
+        lastTimingReportMs_ = nowMs;
+        const AngleDiagnostics& d = sensor_.angleDiagnostics();
+        Serial.printf(
+          "ANGLE_TIMING,dt_min=%.6f,dt_mean=%.6f,dt_max=%.6f,"
+          "invalid_dt=%lu,queue_now=%lu,queue_max=%lu,dropped=%lu,"
+          "stationary=%d,accel_valid=%d,mag_valid=%d,clip_count=%lu\n",
+          d.dtMin, d.dtMean, d.dtMax,
+          static_cast<unsigned long>(d.invalidDtCount),
+          static_cast<unsigned long>(depth),
+          static_cast<unsigned long>(maxQueueDepth_),
+          static_cast<unsigned long>(eventQueue_.droppedEvents()),
+          d.stationary ? 1 : 0, d.accelValid ? 1 : 0, d.magValid ? 1 : 0,
+          static_cast<unsigned long>(d.gyroClipCount));
+      }
+#endif
     }
   }
 }

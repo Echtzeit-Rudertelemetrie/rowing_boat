@@ -1,0 +1,11 @@
+samples=9818
+duration_s=196.340
+dt_min_ms=9.9990
+dt_mean_ms=10.0002
+dt_p99_ms=10.0020
+dt_max_ms=10.0020
+invalid_dt_count=0
+gyro_clip_count=0
+stationary_fraction=0.9351
+stationary_drift_deg_per_min=22.035386
+angle_peak_to_peak_deg=80.832600

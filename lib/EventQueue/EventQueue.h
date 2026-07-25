@@ -14,6 +14,7 @@ public:
   bool pushFromISR(EventType event, BaseType_t* higherPriorityTaskWoken);
   bool pop(EventType& event, TickType_t timeoutTicks);
   bool isEmpty() const;
+  uint32_t messagesWaiting() const;
   uint32_t droppedEvents() const;
 
 private:

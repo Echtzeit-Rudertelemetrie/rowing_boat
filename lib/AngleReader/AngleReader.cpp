@@ -1,328 +1,421 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// AngleReader.cpp — Orientierung aus dem ICM-20948 (Accel + Gyro + AK09916-Mag)
-// ─────────────────────────────────────────────────────────────────────────────
 #include "AngleReader.h"
+#include <math.h>
 
-// ── (1) Magnetometer-Kalibrierung ─────────────────────────────────────────────
-
-const float AngleReader::MAG_A[3][3] = {
-    {1.97954f, 0.0f, 0.0f},
-    {0.0f, 0.976826f, 0.0f},
-    {0.0f, 0.0f, 0.517154f}
-};
-
-
-const float AngleReader::MAG_B[3] = {39.4022f, -96.3556f, -83.9676f};
-
-// Eigene float-Konstante statt Arduinos DEG_TO_RAD: das Makro ist ein
-// double-Literal und zieht die ganze Rechnung in Software-double — die
-// S3-FPU kann nur single precision, double kostet ein Vielfaches.
-static constexpr float kDegToRad = 0.017453293f;
-
-static Quat makeIdentityQuat() {
-    Quat q0;
-    q0.m[0][0] = 1.0f;
-    return q0;
-}
-
-// Numerisch stabile Online-Varianz (Welford). Nur von calibrateSensorNoise()
-// genutzt; die Normierung mit (n-1) entspricht MATLABs var() in
-// sensor_noise_calibration.m, damit beide Seiten denselben Wert liefern.
 namespace {
-struct Welford {
-    float mean = 0.0f;
-    float m2   = 0.0f;
-    int   n    = 0;
+constexpr float kDegToRad = 0.01745329252f;
+constexpr float kRadToDeg = 57.29577951f;
 
-    void add(float x) {
-        ++n;
-        const float delta = x - mean;
-        mean += delta / static_cast<float>(n);
-        m2   += delta * (x - mean);
-    }
-
-    float variance() const {
-        if (n < 2) return 0.0f;
-        const float v = m2 / static_cast<float>(n - 1);
-        return (v > 0.0f) ? v : 0.0f;   // Rundung kann minimal unter 0 rutschen
-    }
-};
+Quat identityQuaternion() {
+    Quat q;
+    q.m[0][0] = 1.0f;
+    return q;
+}
 } // namespace
 
+void AngleReader::RunningStats::clear() {
+    mean = 0.0f;
+    m2 = 0.0f;
+    n = 0;
+}
+
+void AngleReader::RunningStats::add(float value) {
+    ++n;
+    const float delta = value - mean;
+    mean += delta / static_cast<float>(n);
+    m2 += delta * (value - mean);
+}
+
+float AngleReader::RunningStats::variance() const {
+    return n > 1 ? fmaxf(0.0f, m2 / static_cast<float>(n - 1)) : 0.0f;
+}
+
+float AngleReader::RunningStats::stddev() const {
+    return sqrtf(variance());
+}
+
 AngleReader::AngleReader()
-    : ekf(kDefaultGyroNoise, kDefaultAccelNoise, kDefaultMagNoise),
-      q(makeIdentityQuat()),
-      initialized(false),
-      hwOk(false),
-      lastUpdateUs(0),
-      lastAngleDeg(0.0f),
-      gyroOffset{0.0f, 0.0f, 0.0f} {
-    // KEIN Hardware-Zugriff im Konstruktor! Der laeuft als globale Static-Init
-    // noch vor setup()/Serial.begin(). I2C-Init passiert in begin(). Der EKF
-    // startet deshalb mit den kDefault*Noise-Werten; calibrateSensorNoise()
-    // in begin() ersetzt sie bei plausibler Messung durch die gemessenen.
+    : ekf_(AngleConfig::GYRO_PROCESS_VARIANCE_FLOOR,
+           AngleConfig::ACCEL_MEAS_VARIANCE_FLOOR,
+           AngleConfig::MAG_MEAS_VARIANCE_FLOOR),
+      q_(identityQuaternion()) {
+}
+
+float AngleReader::clampf(float value, float low, float high) {
+    return fminf(high, fmaxf(low, value));
 }
 
 bool AngleReader::begin() {
-    // Der ICM-20948 braucht nach dem Einschalten manchmal einen zweiten Anlauf.
     bool ok = false;
     for (int attempt = 0; attempt < 3 && !ok; ++attempt) {
-        if (attempt > 0) {
-            delay(100);
-        }
-        ok = (icm.begin(Wire, AD0_VAL) == ICM_20948_Stat_Ok);
+        if (attempt > 0) delay(100);
+        ok = (icm_.begin(Wire, true) == ICM_20948_Stat_Ok);
     }
-
     if (!ok) {
-        Serial.print("Failed to find ICM-20948 chip: ");
-        Serial.println(icm.statusString());
+        Serial.print("ANGLE_ERROR,ICM20948_NOT_FOUND,");
+        Serial.println(icm_.statusString());
         return false;
     }
 
-    // Full-Scale wie beim alten MPU6050-Setup: +/-8 g, +/-500 dps
     ICM_20948_fss_t fss;
     fss.a = gpm8;
     fss.g = dps500;
-    icm.setFullScale((ICM_20948_Internal_Acc | ICM_20948_Internal_Gyr), fss);
+    icm_.setFullScale(ICM_20948_Internal_Acc | ICM_20948_Internal_Gyr, fss);
 
-    // DLPF ~24 Hz — Gegenstueck zu MPU6050_BAND_21_HZ
     ICM_20948_dlpcfg_t dlp;
     dlp.a = acc_d23bw9_n34bw4;
     dlp.g = gyr_d23bw9_n35bw9;
-    icm.setDLPFcfg((ICM_20948_Internal_Acc | ICM_20948_Internal_Gyr), dlp);
-    icm.enableDLPF(ICM_20948_Internal_Acc, true);
-    icm.enableDLPF(ICM_20948_Internal_Gyr, true);
+    icm_.setDLPFcfg(ICM_20948_Internal_Acc | ICM_20948_Internal_Gyr, dlp);
+    icm_.enableDLPF(ICM_20948_Internal_Acc, true);
+    icm_.enableDLPF(ICM_20948_Internal_Gyr, true);
 
-    // Magnetometer: startupMagnetometer() in begin() setzt den AK09916 bereits
-    // auf 100-Hz-Dauerbetrieb -> passt zu SAMPLE_INTERVAL_US.
+    ICM_20948_smplrt_t rate;
+    rate.a = AngleConfig::ACCEL_RATE_DIVIDER;
+    rate.g = AngleConfig::GYRO_RATE_DIVIDER;
+    const ICM_20948_Status_e rateStatus =
+        icm_.setSampleRate(ICM_20948_Internal_Acc | ICM_20948_Internal_Gyr, rate);
+    Serial.printf("ANGLE_CONFIG,odr_hz=102.3,rate_status=%d,mag_cal_verified=%d\n",
+                  static_cast<int>(rateStatus), AngleConfig::MAG_CALIBRATION_VERIFIED ? 1 : 0);
 
-    hwOk = true;
-    calibrateGyroOffsets();
-    calibrateSensorNoise();
+    hwOk_ = true;
+    if (!calibrateGyroOffsets()) {
+        // Continue in degraded mode. The EKF and later safe stationary periods can
+        // recover bias, while diagnostics clearly expose the failed boot state.
+        for (float& bias : gyroBiasRadS_) bias = 0.0f;
+        diagnostics_.calibrationState = AngleCalibrationState::Failed;
+        Serial.println("ANGLE_WARNING,BOOT_CALIBRATION_FAILED,using_zero_bias");
+    }
     return true;
 }
 
-// ── Gyro-Ruhe-Offsets beim Boot erfassen (Sensor muss dabei still liegen) ─────
-void AngleReader::calibrateGyroOffsets() {
-    Serial.println("Gyro-Offset-Kalibrierung (Sensor ruhig halten)...");
+bool AngleReader::calibrateGyroOffsets() {
+    diagnostics_.calibrationState = AngleCalibrationState::WarmingUp;
+    Serial.printf("ANGLE_CAL,WARMUP,%lu_ms,do_not_move\n",
+                  static_cast<unsigned long>(AngleConfig::BOOT_WARMUP_MS));
+    delay(AngleConfig::BOOT_WARMUP_MS);
 
-    float sum[3] = {0.0f, 0.0f, 0.0f};
-    int collected = 0;
-    const unsigned long deadlineMs = millis() + 3000; // Notausstieg, falls keine Daten kommen
+    for (uint8_t attempt = 1; attempt <= AngleConfig::BOOT_CALIBRATION_ATTEMPTS; ++attempt) {
+        diagnostics_.calibrationState = AngleCalibrationState::Measuring;
+        Serial.printf("ANGLE_CAL,MEASURING,attempt=%u,duration_ms=%lu\n",
+                      attempt, static_cast<unsigned long>(AngleConfig::BOOT_CALIBRATION_MS));
 
-    while (collected < GYRO_CALIB_SAMPLES && millis() < deadlineMs) {
-        if (icm.dataReady()) {
-            icm.getAGMT();
-            sum[0] += icm.gyrX();
-            sum[1] += icm.gyrY();
-            sum[2] += icm.gyrZ();
-            ++collected;
-        }
-        delay(1);
-    }
-
-    if (collected > 0) {
-        for (int i = 0; i < 3; ++i) {
-            gyroOffset[i] = (sum[i] / collected) * kDegToRad;
-        }
-    }
-
-    Serial.printf("Gyro-Offsets [rad/s]: %.5f %.5f %.5f (%d Samples)\n",
-                  gyroOffset[0], gyroOffset[1], gyroOffset[2], collected);
-}
-
-// ── Sensor-Rauschen im Stillstand messen (Sensor muss dabei still liegen) ────
-// Ersetzt bei plausiblem Ergebnis die Konstruktor-Defaults im EKF. Schlaegt
-// die Messung fehl oder wirkt sie unplausibel (Sensor wurde bewegt), bleiben
-// die kDefault*Noise-Werte aktiv.
-void AngleReader::calibrateSensorNoise() {
-    Serial.println("Rauschmessung (Sensor ruhig halten)...");
-
-    // Akkumulatoren PRO ACHSE, auf den ROHEN Messwerten. Zwei Fallen stecken hier:
-    //
-    // 1) Die Achsen duerfen nicht in einen gemeinsamen Mittelwert wandern. In Ruhe
-    //    liegt eine Accel-Achse bei ~g und die anderen bei ~0 — eine ueber alle drei
-    //    gepoolte Varianz misst dann den Abstand ZWISCHEN den Achsen statt des
-    //    Rauschens (beim normierten Vektor: 0.22 statt 1e-6).
-    //
-    // 2) Gemessen wird ROH, nicht normiert. Beim Normieren faellt das Rauschen
-    //    entlang der dominanten Richtung heraus (aus (1+e0, e1, e2) wird nach der
-    //    Division ~1.0), die Schwerkraft-Achse haette also scheinbar Varianz ~0.
-    //    Welche Achse das trifft, haengt aber an der KALIBRIERLAGE — wir wuerden
-    //    die Boot-Orientierung der Dolle in R einbetonieren, und sobald sich das
-    //    Ruder dreht, passt R nicht mehr. Die Varianz der rohen Komponenten ist
-    //    dagegen eine echte Sensoreigenschaft (MEMS-Achsen rauschen wirklich
-    //    unterschiedlich) und dreht sich mit dem Body-Frame mit. Die Umrechnung in
-    //    den normierten Messraum, in dem z/h leben, passiert unten ueber 1/|v|^2.
-    //
-    // Welford statt sum/sumSq: die Lehrbuchformel E[x^2]-E[x]^2 loescht sich in
-    // float aus, wenn der Mittelwert gross gegen das Rauschen ist (Accel: ~9.81
-    // vs ~0.009) — gemessen kamen dabei negative Varianzen heraus.
-    Welford gyroAcc[3], accelAcc[3], magAcc[3];
-    Welford accelNorm, magNorm;   // fuer die Skalierung roh -> normiert
-    int collected = 0;
-    const unsigned long deadlineMs = millis() + 3000; // Notausstieg, falls keine Daten kommen
-
-    while (collected < NOISE_CALIB_SAMPLES && millis() < deadlineMs) {
-        Vec3 gyroV, accelV, magV;
-        if (readSample(gyroV, accelV, magV)) {
-            float na = norm3(accelV);
-            float nm = norm3(magV);
-            if (na < 1e-9f || nm < 1e-9f) continue; // Nullvektor -> Sample verwerfen
-
-            for (int i = 0; i < 3; ++i) {
-                gyroAcc[i].add(gyroV.m[i][0]);
-                accelAcc[i].add(accelV.m[i][0]);
-                magAcc[i].add(magV.m[i][0]);
+        RunningStats gyro[3];
+        RunningStats accelNorm;
+        const uint32_t startMs = millis();
+        while (static_cast<uint32_t>(millis() - startMs) < AngleConfig::BOOT_CALIBRATION_MS) {
+            if (icm_.dataReady()) {
+                icm_.getAGMT();
+                gyro[0].add(icm_.gyrX());
+                gyro[1].add(icm_.gyrY());
+                gyro[2].add(icm_.gyrZ());
+                const float ax = icm_.accX(), ay = icm_.accY(), az = icm_.accZ();
+                accelNorm.add(sqrtf(ax * ax + ay * ay + az * az));
             }
-            accelNorm.add(na);
-            magNorm.add(nm);
-            ++collected;
+            delay(1);
         }
-        delay(1);
-    }
 
-    const int MIN_NOISE_SAMPLES = 50;
-    if (collected < MIN_NOISE_SAMPLES) {
-        Serial.println("Rauschmessung: zu wenig Samples, bleibe bei Default-Werten.");
-        return;
-    }
+        const float accelStdFraction =
+            accelNorm.mean > 1.0f ? accelNorm.stddev() / accelNorm.mean : 1.0f;
+        bool valid = gyro[0].n >= AngleConfig::BOOT_MIN_SAMPLES &&
+                     accelNorm.mean >= AngleConfig::BOOT_ACCEL_NORM_MIN_MG &&
+                     accelNorm.mean <= AngleConfig::BOOT_ACCEL_NORM_MAX_MG &&
+                     accelStdFraction <= AngleConfig::BOOT_MAX_ACCEL_STD_FRACTION;
+        for (int i = 0; i < 3; ++i) {
+            valid = valid &&
+                    fabsf(gyro[i].mean) <= AngleConfig::BOOT_MAX_GYRO_MEAN_DPS &&
+                    gyro[i].stddev() <= AngleConfig::BOOT_MAX_GYRO_STD_DPS;
+        }
 
-    // z und h im EKF sind normierte Vektoren -> R muss im normierten Raum leben.
-    // Isotropes Rohrauschen sigma^2 wird durch die Normierung zu sigma^2/|v|^2.
-    // Der Gyro geht roh in die Praediktion ein und bleibt daher unskaliert.
-    const float accelScale = 1.0f / (accelNorm.mean * accelNorm.mean);
-    const float magScale   = 1.0f / (magNorm.mean * magNorm.mean);
+        Serial.printf(
+            "ANGLE_CAL,QUALITY,attempt=%u,samples=%lu,"
+            "mean_dps=%.5f|%.5f|%.5f,std_dps=%.5f|%.5f|%.5f,"
+            "accel_mean_mg=%.2f,accel_std_fraction=%.6f,result=%s\n",
+            attempt, static_cast<unsigned long>(gyro[0].n),
+            gyro[0].mean, gyro[1].mean, gyro[2].mean,
+            gyro[0].stddev(), gyro[1].stddev(), gyro[2].stddev(),
+            accelNorm.mean, accelStdFraction, valid ? "VALID" : "MOVEMENT");
 
-    Vec3 gyroVar, accelVar, magVar;
-    for (int i = 0; i < 3; ++i) {
-        gyroVar.m[i][0]  = gyroAcc[i].variance();
-        accelVar.m[i][0] = accelAcc[i].variance() * accelScale;
-        magVar.m[i][0]   = magAcc[i].variance()   * magScale;
-    }
-
-    for (int i = 0; i < 3; ++i) {
-        if (gyroVar.m[i][0]  > kNoisePlausibilityLimit ||
-            accelVar.m[i][0] > kNoisePlausibilityLimit ||
-            magVar.m[i][0]   > kNoisePlausibilityLimit) {
-            Serial.println("Rauschmessung: Sensor war nicht still, bleibe bei Default-Werten.");
-            return;
+        if (valid) {
+            Vec3 measuredGyroVar;
+            for (int i = 0; i < 3; ++i) {
+                gyroBiasRadS_[i] = gyro[i].mean * kDegToRad;
+                measuredGyroVar.m[i][0] = gyro[i].variance() * kDegToRad * kDegToRad;
+            }
+            accelRestNorm_ = accelNorm.mean;
+            configureFilterNoise(measuredGyroVar);
+            diagnostics_.calibrationState = AngleCalibrationState::Valid;
+            Serial.printf("ANGLE_CAL,SUCCESS,bias_dps=%.6f|%.6f|%.6f,accel_rest_mg=%.3f\n",
+                          gyro[0].mean, gyro[1].mean, gyro[2].mean, accelRestNorm_);
+            return true;
+        }
+        if (attempt < AngleConfig::BOOT_CALIBRATION_ATTEMPTS) {
+            Serial.println("ANGLE_CAL,RETRY,keep_device_completely_still");
+            delay(1000);
         }
     }
-
-    ekf.setNoise(gyroVar, accelVar, magVar);
-    Serial.printf("Rauschwerte gemessen (%d Samples), Varianz je EKF-Achse:\n", collected);
-    Serial.printf("  gyro  [(rad/s)^2]: %.3e %.3e %.3e\n",
-                  gyroVar.m[0][0], gyroVar.m[1][0], gyroVar.m[2][0]);
-    Serial.printf("  accel [normiert] : %.3e %.3e %.3e\n",
-                  accelVar.m[0][0], accelVar.m[1][0], accelVar.m[2][0]);
-    Serial.printf("  mag   [normiert] : %.3e %.3e %.3e\n",
-                  magVar.m[0][0], magVar.m[1][0], magVar.m[2][0]);
+    diagnostics_.calibrationState = AngleCalibrationState::Failed;
+    return false;
 }
 
-// ── Hilfsfunktion: Magnetometer kalibrieren ──────────────────────────────────
+void AngleReader::configureFilterNoise(const Vec3& measuredGyroVariance) {
+    Vec3 gyroQ, accelR, magR;
+    for (int i = 0; i < 3; ++i) {
+        gyroQ.m[i][0] = clampf(measuredGyroVariance.m[i][0],
+                               AngleConfig::GYRO_PROCESS_VARIANCE_FLOOR,
+                               AngleConfig::GYRO_PROCESS_VARIANCE_CEILING);
+        accelR.m[i][0] = AngleConfig::ACCEL_MEAS_VARIANCE_FLOOR;
+        magR.m[i][0] = AngleConfig::MAG_MEAS_VARIANCE_FLOOR;
+    }
+    ekf_.setNoise(gyroQ, accelR, magR);
+}
+
 void AngleReader::calibrateMag(const float raw[3], float out[3]) {
-    float c[3] = {
-        raw[0] - MAG_B[0],
-        raw[1] - MAG_B[1],
-        raw[2] - MAG_B[2]
+    float centered[3] = {
+        raw[0] - AngleConfig::MAG_B[0],
+        raw[1] - AngleConfig::MAG_B[1],
+        raw[2] - AngleConfig::MAG_B[2]
     };
-
-    for (int i = 0; i < 3; ++i) {
-        out[i] = c[0] * MAG_A[0][i] + c[1] * MAG_A[1][i] + c[2] * MAG_A[2][i];
+    for (int row = 0; row < 3; ++row) {
+        out[row] = AngleConfig::MAG_A[row][0] * centered[0] +
+                   AngleConfig::MAG_A[row][1] * centered[1] +
+                   AngleConfig::MAG_A[row][2] * centered[2];
     }
 }
 
-// ── Einen kompletten Messsatz lesen und in den EKF-Frame bringen ─────────────
 bool AngleReader::readSample(Vec3& gyroV, Vec3& accelV, Vec3& magV) {
-    if (!hwOk || !icm.dataReady()) {
-        return false;
-    }
+    if (!hwOk_ || !icm_.dataReady()) return false;
+    icm_.getAGMT();
 
-    icm.getAGMT();
-
-    // Gyro: SparkFun-Lib liefert dps -> rad/s (EKF-Erwartung), Ruhe-Offset abziehen
-    float gx = icm.gyrX() * kDegToRad - gyroOffset[0];
-    float gy = icm.gyrY() * kDegToRad - gyroOffset[1];
-    float gz = icm.gyrZ() * kDegToRad - gyroOffset[2];
-
-    // Accel bleibt in mg — der EKF normiert, nur die Richtung zaehlt
-    float ax = icm.accX();
-    float ay = icm.accY();
-    float az = icm.accZ();
-
-    // AK09916 -> Accel/Gyro-Frame: X gleich, Y und Z invertiert
-    // (ICM-20948-Datenblatt Kap. 10.1 "Orientation of Axes")
-    float magAligned[3] = {icm.magX(), -icm.magY(), -icm.magZ()};
+    const float rawGyroDps[3] = {icm_.gyrX(), icm_.gyrY(), icm_.gyrZ()};
+    const float accelNative[3] = {icm_.accX(), icm_.accY(), icm_.accZ()};
+    const float magAligned[3] = {icm_.magX(), -icm_.magY(), -icm_.magZ()};
     float magCal[3];
     calibrateMag(magAligned, magCal);
 
-    // Einbaulage -> EKF-Frame: Breakout ist mit Y nach OBEN montiert.
-    // Zyklische Vertauschung (y, z, x) = echte Rotation (det +1, anders als der
-    // alte x<->z-Tausch, der eine Spiegelung war): die vertikale Body-Y-Achse
-    // landet auf der EKF-X-Achse, deren Drehung (Roll) der Dollen-Winkel ist.
-    // Das Mag macht dieselbe Vertauschung mit (sitzt auf demselben Chip).
-    // TODO: Vorzeichen am realen Aufbau pruefen (Drehrichtung Catch -> Finish).
-    gyroV  = vec3(gy, gz, gx);
-    accelV = vec3(ay, az, ax);
-    magV   = vec3(magCal[1], magCal[2], magCal[0]);
+    for (int i = 0; i < 3; ++i) {
+        latestRawGyroRadS_[i] = rawGyroDps[i] * kDegToRad;
+        diagnostics_.gyroRawDps[i] = rawGyroDps[i];
+        diagnostics_.gyroBiasDps[i] = gyroBiasRadS_[i] * kRadToDeg;
+        diagnostics_.accel[i] = accelNative[i];
+        diagnostics_.magRaw[i] = magAligned[i];
+        diagnostics_.magCalibrated[i] = magCal[i];
+    }
+
+    const float gx = latestRawGyroRadS_[0] - gyroBiasRadS_[0];
+    const float gy = latestRawGyroRadS_[1] - gyroBiasRadS_[1];
+    const float gz = latestRawGyroRadS_[2] - gyroBiasRadS_[2];
+
+    // Physical mounting -> EKF frame. Sensor Y is the presumed oarlock axis and
+    // becomes EKF X; output remains roll. This is a proper cyclic rotation.
+    gyroV = vec3(gy, gz, gx);
+    accelV = vec3(accelNative[1], accelNative[2], accelNative[0]);
+    magV = vec3(magCal[1], magCal[2], magCal[0]);
+
+    diagnostics_.gyroCorrectedDps[0] = gyroV.m[0][0] * kRadToDeg;
+    diagnostics_.gyroCorrectedDps[1] = gyroV.m[1][0] * kRadToDeg;
+    diagnostics_.gyroCorrectedDps[2] = gyroV.m[2][0] * kRadToDeg;
+    diagnostics_.accelNorm = norm3(accelV);
+    diagnostics_.magNorm = norm3(magV);
+    diagnostics_.temperatureC = icm_.temp();
+
+    // AK09916 ST1.DRDY bit 0 and ST2.HOFL bit 3 are part of the nine-byte
+    // external-sensor shadow read by getAGMT().
+    const bool drdy = (icm_.agmt.magStat1 & 0x01u) != 0;
+    const bool overflow = (icm_.agmt.magStat2 & 0x08u) != 0;
+    diagnostics_.magFresh = drdy && !overflow;
+    if (diagnostics_.magFresh) lastFreshMagUs_ = micros();
+
+    diagnostics_.gyroClipped = fabsf(rawGyroDps[0]) >= AngleConfig::GYRO_CLIP_WARNING_DPS ||
+                               fabsf(rawGyroDps[1]) >= AngleConfig::GYRO_CLIP_WARNING_DPS ||
+                               fabsf(rawGyroDps[2]) >= AngleConfig::GYRO_CLIP_WARNING_DPS;
+    if (diagnostics_.gyroClipped) ++diagnostics_.gyroClipCount;
     return true;
 }
 
-// ── Hauptfunktion ─────────────────────────────────────────────────────────────
-float AngleReader::sampleAndCalculateAngle() {
-    unsigned long nowUs = micros();
+void AngleReader::updateStationarity(const Vec3& gyro, float accelNorm, uint32_t nowMs) {
+    float correctedDps[3];
+    for (int axis = 0; axis < 3; ++axis) correctedDps[axis] = gyro.m[axis][0] * kRadToDeg;
 
-    // Zwischen echten Samples (und ohne Hardware) den letzten Winkel liefern,
-    // damit keine falschen 0-Grad-Werte in die Funkpakete wandern.
-    if (!hwOk) {
-        return lastAngleDeg;
-    }
-
-    // 1) Einmalige Initialisierung: erste Messung liefert die EKF-Referenzen
-    if (!initialized) {
-        Vec3 gyroV, accelV, magV;
-        if (!readSample(gyroV, accelV, magV)) {
-            return lastAngleDeg;
+    if (gyroWindowCount_ == kStationaryWindow) {
+        for (int axis = 0; axis < 3; ++axis) {
+            const float old = gyroWindow_[gyroWindowIndex_][axis];
+            gyroWindowSum_[axis] -= old;
+            gyroWindowSumSq_[axis] -= old * old;
         }
+    } else {
+        ++gyroWindowCount_;
+    }
+    for (int axis = 0; axis < 3; ++axis) {
+        gyroWindow_[gyroWindowIndex_][axis] = correctedDps[axis];
+        gyroWindowSum_[axis] += correctedDps[axis];
+        gyroWindowSumSq_[axis] += correctedDps[axis] * correctedDps[axis];
+    }
+    gyroWindowIndex_ = (gyroWindowIndex_ + 1) % kStationaryWindow;
 
-        ekf.setReferences(q, accelV, magV);
+    const float rateNorm = sqrtf(correctedDps[0] * correctedDps[0] +
+                                 correctedDps[1] * correctedDps[1] +
+                                 correctedDps[2] * correctedDps[2]);
+    const float accelFraction = accelRestNorm_ > 1.0f
+        ? fabsf(accelNorm / accelRestNorm_ - 1.0f) : 1.0f;
+    bool candidate = gyroWindowCount_ == kStationaryWindow &&
+                     rateNorm <= AngleConfig::STATIONARY_MAX_RATE_DPS &&
+                     accelFraction <= AngleConfig::STATIONARY_ACCEL_TOLERANCE;
+    float meanRateSquared = 0.0f;
+    for (int axis = 0; axis < 3 && candidate; ++axis) {
+        const float n = static_cast<float>(gyroWindowCount_);
+        const float mean = gyroWindowSum_[axis] / n;
+        meanRateSquared += mean * mean;
+        const float variance = fmaxf(0.0f, gyroWindowSumSq_[axis] / n - mean * mean);
+        candidate = sqrtf(variance) <= AngleConfig::STATIONARY_MAX_GYRO_STD_DPS;
+    }
+    candidate = candidate &&
+                sqrtf(meanRateSquared) <= AngleConfig::STATIONARY_MAX_MEAN_RATE_DPS;
 
-        lastUpdateUs = nowUs;
-        initialized = true;
-        return lastAngleDeg;
+    if (!candidate) {
+        stationaryCandidateSinceMs_ = 0;
+        stationary_ = false;
+    } else if (stationaryCandidateSinceMs_ == 0) {
+        stationaryCandidateSinceMs_ = nowMs;
+        stationary_ = false;
+    } else {
+        stationary_ = static_cast<uint32_t>(nowMs - stationaryCandidateSinceMs_) >=
+                      AngleConfig::STATIONARY_HOLD_MS;
+    }
+    diagnostics_.stationary = stationary_;
+}
+
+void AngleReader::updateOnlineBias(float dt) {
+    if (!stationary_ || diagnostics_.calibrationState == AngleCalibrationState::Measuring) return;
+    const float alpha = dt / (AngleConfig::ONLINE_BIAS_TIME_CONSTANT_S + dt);
+    const float maxStep = AngleConfig::ONLINE_BIAS_MAX_SLEW_DPS_PER_S * kDegToRad * dt;
+    for (int i = 0; i < 3; ++i) {
+        const float requested = alpha * (latestRawGyroRadS_[i] - gyroBiasRadS_[i]);
+        gyroBiasRadS_[i] += clampf(requested, -maxStep, maxStep);
+        diagnostics_.gyroBiasDps[i] = gyroBiasRadS_[i] * kRadToDeg;
+    }
+}
+
+void AngleReader::updateMeasurementGates(float accelNorm, float magNorm, bool magFresh) {
+    const float accelDeviation = accelRestNorm_ > 1.0f
+        ? fabsf(accelNorm / accelRestNorm_ - 1.0f) : 1.0f;
+    if (accelValid_) {
+        if (!isfinite(accelDeviation) || accelDeviation > AngleConfig::ACCEL_VALID_EXIT_FRACTION) {
+            accelValid_ = false;
+            accelGoodCount_ = 0;
+        }
+    } else if (accelDeviation < AngleConfig::ACCEL_VALID_ENTER_FRACTION) {
+        if (++accelGoodCount_ >= AngleConfig::ACCEL_VALID_CONFIRM_SAMPLES) {
+            accelValid_ = true;
+            accelGoodCount_ = AngleConfig::ACCEL_VALID_CONFIRM_SAMPLES;
+        }
+    } else {
+        accelGoodCount_ = 0;
     }
 
-    // 2) Kein eigener 100-Hz-Begrenzer mehr: der Timer in DollenApp tickt jetzt
-    // selbst mit 100 Hz und gibt die Abtastrate vor (1 Tick = 1 EKF-Schritt).
-    // Der alte Limiter (Skip wenn < 10 ms) hat zusammen mit dem 200-Hz-Timer
-    // jeden zweiten Aufruf verworfen; mit Timer-Jitter haette er bei exakt
-    // 100-Hz-Ticks sogar zufaellig echte Samples verschluckt (9.9 ms -> Skip,
-    // naechster Schritt dann mit 20 ms dt). Es bleibt nur ein Burst-Schutz:
-    // arbeitet die Event-Queue einen Rueckstau ab, kommen Ticks quasi
-    // gleichzeitig an — ein EKF-Schritt mit Mini-dt bringt nichts (der AK09916
-    // haette ohnehin keine neuen Daten) und wird uebersprungen.
-    if ((nowUs - lastUpdateUs) < SAMPLE_INTERVAL_US / 2) {
-        return lastAngleDeg;
+    if (magRestNorm_ <= 0.0f && magFresh &&
+        magNorm >= AngleConfig::MAG_NORM_MIN_UT && magNorm <= AngleConfig::MAG_NORM_MAX_UT) {
+        magRestNorm_ = magNorm;
+    }
+    const bool freshRecently = static_cast<uint32_t>(micros() - lastFreshMagUs_) <=
+                               AngleConfig::MAG_MAX_STALE_US;
+    const float magDeviation = magRestNorm_ > 1.0f
+        ? fabsf(magNorm / magRestNorm_ - 1.0f) : 1.0f;
+    // An uncalibrated magnetometer can be stable yet point in a completely
+    // wrong direction (confirmed on the inherited assembly). Never let it pull
+    // the angle toward a false reference. The diagnostic stream remains active
+    // so a proper ellipsoid calibration can be collected.
+    const bool magPlausible = AngleConfig::MAG_CALIBRATION_VERIFIED &&
+                              freshRecently && isfinite(magNorm) &&
+                              magNorm >= AngleConfig::MAG_NORM_MIN_UT &&
+                              magNorm <= AngleConfig::MAG_NORM_MAX_UT;
+    if (magValid_) {
+        if (!magPlausible || magDeviation > AngleConfig::MAG_VALID_EXIT_FRACTION) {
+            magValid_ = false;
+            magGoodCount_ = 0;
+        }
+    } else if (magPlausible && magDeviation < AngleConfig::MAG_VALID_ENTER_FRACTION) {
+        if (++magGoodCount_ >= AngleConfig::MAG_VALID_CONFIRM_SAMPLES) {
+            magValid_ = true;
+            magGoodCount_ = AngleConfig::MAG_VALID_CONFIRM_SAMPLES;
+        }
+    } else {
+        magGoodCount_ = 0;
     }
 
-    Vec3 gyroV, accelV, magV;
-    if (!readSample(gyroV, accelV, magV)) {
-        return lastAngleDeg;
+    diagnostics_.accelValid = accelValid_;
+    diagnostics_.magValid = magValid_;
+}
+
+void AngleReader::updateTimingStats(float dt) {
+    if (dtCount_ == 0) {
+        diagnostics_.dtMin = diagnostics_.dtMax = dt;
+    } else {
+        diagnostics_.dtMin = fminf(diagnostics_.dtMin, dt);
+        diagnostics_.dtMax = fmaxf(diagnostics_.dtMax, dt);
+    }
+    dtSum_ += dt;
+    ++dtCount_;
+    diagnostics_.dtMean = static_cast<float>(dtSum_ / static_cast<double>(dtCount_));
+}
+
+float AngleReader::sampleAndCalculateAngle() {
+    const uint32_t nowUs = micros();
+    if (!hwOk_) return lastAngleDeg_;
+
+    if (!initialized_) {
+        Vec3 gyro, accel, mag;
+        if (!readSample(gyro, accel, mag)) return lastAngleDeg_;
+        accelRestNorm_ = diagnostics_.calibrationState == AngleCalibrationState::Valid
+            ? accelRestNorm_ : norm3(accel);
+        updateMeasurementGates(norm3(accel), norm3(mag), diagnostics_.magFresh);
+        ekf_.setReferences(q_, accel, mag);
+        lastUpdateUs_ = nowUs;
+        initialized_ = true;
+        return lastAngleDeg_;
     }
 
-    // *1e-6f statt /1e6f: Division hat auf der LX7-FPU keinen eigenen Befehl
-    // und wird zur mehrzykligen Reziprok-Sequenz — Multiplikation ist 1 Takt.
-    float dt = (nowUs - lastUpdateUs) * 1e-6f;
-    lastUpdateUs = nowUs;
+    const uint32_t elapsedUs = nowUs - lastUpdateUs_;
+    if (elapsedUs < AngleConfig::SAMPLE_INTERVAL_US / 2) return lastAngleDeg_;
 
-    // EKF-Schritt
-    q = ekf.update(q, gyroV, accelV, magV, dt);
+    Vec3 gyro, accel, mag;
+    if (!readSample(gyro, accel, mag)) return lastAngleDeg_;
+    lastUpdateUs_ = nowUs;
+    const float dt = elapsedUs * 1.0e-6f;
+    diagnostics_.timestampUs = nowUs;
+    diagnostics_.dt = dt;
+    ++diagnostics_.sequence;
 
-    // Quaternion -> Euler
-    EulerDeg e = quatToEulerDeg(q);
+    if (!isfinite(dt) || dt < AngleConfig::MIN_VALID_DT_S || dt > AngleConfig::MAX_VALID_DT_S) {
+        ++diagnostics_.invalidDtCount;
+        return lastAngleDeg_; // never integrate one current sample over a long gap
+    }
+    updateTimingStats(dt);
+    updateStationarity(gyro, norm3(accel), millis());
+    updateOnlineBias(dt);
+    updateMeasurementGates(norm3(accel), norm3(mag), diagnostics_.magFresh);
 
-    // x-Achse = Roll
-    lastAngleDeg = e.roll;
-    return lastAngleDeg;
+    q_ = ekf_.update(q_, gyro, accel, mag, dt, accelValid_, magValid_);
+    EulerDeg e = quatToEulerDeg(q_);
+    if (!isfinite(e.roll) || !isfinite(e.pitch) || !isfinite(e.yaw)) return lastAngleDeg_;
+
+    diagnostics_.quaternion[0] = q_.m[0][0];
+    diagnostics_.quaternion[1] = q_.m[1][0];
+    diagnostics_.quaternion[2] = q_.m[2][0];
+    diagnostics_.quaternion[3] = q_.m[3][0];
+    diagnostics_.yawDeg = e.yaw;
+    diagnostics_.pitchDeg = e.pitch;
+    diagnostics_.rollDeg = e.roll;
+
+    // Preserved physical choice: sensor Y -> EKF X -> roll. outputZeroDeg_
+    // separates mechanical zeroing from the internal orientation state.
+    float output = e.roll - outputZeroDeg_;
+    while (output > 180.0f) output -= 360.0f;
+    while (output <= -180.0f) output += 360.0f;
+    lastAngleDeg_ = output;
+    diagnostics_.outputAngleDeg = output;
+    return lastAngleDeg_;
+}
+
+void AngleReader::zeroOutputAngle() {
+    const EulerDeg e = quatToEulerDeg(q_);
+    if (isfinite(e.roll)) outputZeroDeg_ = e.roll;
 }

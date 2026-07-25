@@ -26,3 +26,11 @@ float Sensor::ReadForce() {
 float Sensor::ReadAngle() {
   return angleReader.sampleAndCalculateAngle();
 }
+
+const AngleDiagnostics& Sensor::angleDiagnostics() const {
+  return angleReader.diagnostics();
+}
+
+void Sensor::zeroAngle() {
+  angleReader.zeroOutputAngle();
+}

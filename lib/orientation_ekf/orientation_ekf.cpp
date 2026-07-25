@@ -89,6 +89,15 @@ bool allFinite(const Mat<4, 4>& P) {
     return true;
 }
 
+bool finiteVec3(const Vec3& v) {
+    return isfinite(v.m[0][0]) && isfinite(v.m[1][0]) && isfinite(v.m[2][0]);
+}
+
+bool finiteQuat(const Quat& q) {
+    return isfinite(q.m[0][0]) && isfinite(q.m[1][0]) &&
+           isfinite(q.m[2][0]) && isfinite(q.m[3][0]);
+}
+
 } // namespace
 
 // ── Klassen-Implementierung ───────────────────────────────────────────────────
@@ -131,12 +140,23 @@ void OrientationEKF::setReferences(const Quat& q, const Vec3& accelBody, const V
 void OrientationEKF::resetCovariance() { P_ = eye<4>(); }
 
 Quat OrientationEKF::update(const Quat& q, const Vec3& gyro,
-                            const Vec3& accel, const Vec3& mag, float dt) {
+                            const Vec3& accel, const Vec3& mag, float dt,
+                            bool accelValid, bool magValid) {
     if (!allFinite(P_)) P_ = eye<4>();   // wie der isempty/isfinite-Check in MATLAB
+    if (!finiteQuat(q) || !finiteVec3(gyro) || !isfinite(dt) || dt <= 0.0f) {
+        resetCovariance();
+        Quat identity;
+        identity.m[0][0] = 1.0f;
+        return finiteQuat(q) ? normalizeQ(q) : identity;
+    }
 
     // Messungen normieren (Richtung zählt, nicht der Betrag)
-    float na = norm3(accel); Vec3 accel_n = (na > 1e-9f) ? accel * (1.0f/na) : accel;
-    float nm = norm3(mag);   Vec3 mag_n   = (nm > 1e-9f) ? mag   * (1.0f/nm) : mag;
+    float na = finiteVec3(accel) ? norm3(accel) : 0.0f;
+    float nm = finiteVec3(mag) ? norm3(mag) : 0.0f;
+    accelValid = accelValid && isfinite(na) && na > 1e-9f;
+    magValid = magValid && isfinite(nm) && nm > 1e-9f;
+    Vec3 accel_n = accelValid ? accel * (1.0f/na) : vec3(0.0f, 0.0f, 0.0f);
+    Vec3 mag_n   = magValid ? mag * (1.0f/nm) : vec3(0.0f, 0.0f, 0.0f);
 
     // ── Prädiktion ────────────────────────────────────────────────────────────
     Mat<4, 4> Omega  = omegaMat(gyro);
@@ -169,8 +189,8 @@ Quat OrientationEKF::update(const Quat& q, const Vec3& gyro,
     // pro Sensor: gilt dasselbe Argument wie beim Prozessrauschen oben.
     Mat<6, 6> R;
     for (int i = 0; i < 3; ++i) {
-        R.m[i][i]         = accelNoise_.m[i][0];
-        R.m[i + 3][i + 3] = magNoise_.m[i][0];
+        R.m[i][i]         = accelValid ? accelNoise_.m[i][0] : 1.0e3f;
+        R.m[i + 3][i + 3] = magValid ? magNoise_.m[i][0] : 1.0e3f;
     }
 
     // ── Korrektur ──────────────────────────────────────────────────────────────
@@ -183,8 +203,22 @@ Quat OrientationEKF::update(const Quat& q, const Vec3& gyro,
     }
     Mat<4, 6> K = P_pred * transpose(H) * Sinv;   // Kalman-Gain (4x6)
 
-    P_          = (eye<4>() - K * H) * P_pred;
+    // Joseph form preserves positive semi-definiteness better than
+    // P=(I-KH)P on a single-precision MCU.
+    Mat<4, 4> IKH = eye<4>() - K * H;
+    P_ = IKH * P_pred * transpose(IKH) + K * R * transpose(K);
+    // Round-off slowly destroys symmetry; restore it explicitly.
+    Mat<4, 4> Pt = transpose(P_);
+    P_ = (P_ + Pt) * 0.5f;
+    for (int i = 0; i < 4; ++i) {
+        if (!isfinite(P_.m[i][i]) || P_.m[i][i] < 1.0e-9f)
+            P_.m[i][i] = 1.0e-9f;
+    }
     Quat q_new  = normalizeQ(q_pred + K * (z - h));
+    if (!finiteQuat(q_new)) {
+        P_ = P_pred;
+        return q_pred;
+    }
     return q_new;
 }
 

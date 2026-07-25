@@ -45,6 +45,10 @@ bool EventQueue::isEmpty() const {
   return uxQueueMessagesWaiting(queue_) == 0;
 }
 
+uint32_t EventQueue::messagesWaiting() const {
+  return queue_ == nullptr ? 0U : static_cast<uint32_t>(uxQueueMessagesWaiting(queue_));
+}
+
 uint32_t EventQueue::droppedEvents() const {
   return droppedEvents_;
 }

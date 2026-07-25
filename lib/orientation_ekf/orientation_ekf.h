@@ -17,8 +17,7 @@
 class OrientationEKF {
 public:
     // Rauschwerte als Varianzen, isotrop (alle drei Achsen gleich). Die Defaults
-    // sind erfahrungsbasierte Startwerte, KEINE gemessenen Groessen — gemessene
-    // liefert sensor_noise_calibration.m bzw. AngleReader::calibrateSensorNoise().
+    // sind erfahrungsbasierte Startwerte, KEINE gemessenen Groessen.
     explicit OrientationEKF(float gyroNoise  = 0.09f,
                             float accelNoise = 0.25f,
                             float magNoise   = 0.64f);
@@ -53,7 +52,8 @@ public:
     //   dt    – Zeitschritt [s]
     // Liefert die neue, normierte Quaternion.
     Quat update(const Quat& q, const Vec3& gyro,
-                const Vec3& accel, const Vec3& mag, float dt);
+                const Vec3& accel, const Vec3& mag, float dt,
+                bool accelValid = true, bool magValid = true);
 
     // Kovarianz auf Identität zurücksetzen (z. B. nach einem Reset).
     void resetCovariance();

@@ -9,6 +9,8 @@ public:
   void begin();
   float ReadForce();
   float ReadAngle();
+  const AngleDiagnostics& angleDiagnostics() const;
+  void zeroAngle();
 
 private:
     AngleReader angleReader;

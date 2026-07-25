@@ -8,7 +8,11 @@
 #include <climits>
 #include "AppTypes.h"
 
-constexpr std::uint8_t PACKET_RETRIES = 3;
+// ESP-NOW broadcast has no application-level acknowledgement. Re-sending the
+// same sequence number caused duplicate and out-of-order packets at the phone,
+// which made its time axis jump backwards. Send each 100-Hz sample packet once;
+// real loss is detected by the sequence number.
+constexpr std::uint8_t PACKET_RETRIES = 1;
 constexpr std::uint8_t ESP_ID = 1;
 
 // ── Quantisierungs-Spannen ───────────────────────────────────────────────────

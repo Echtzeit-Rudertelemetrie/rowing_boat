@@ -21,4 +21,6 @@ private:
   Sensor sensor_;
   DataSender sender_;
   TimerManager timer_;
+  uint32_t maxQueueDepth_ = 0;
+  uint32_t lastTimingReportMs_ = 0;
 };
