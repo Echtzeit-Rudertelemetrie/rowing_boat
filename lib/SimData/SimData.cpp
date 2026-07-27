@@ -17,9 +17,10 @@ GpsData SimData::gps() {
 ImuData SimData::imu() {
     const uint32_t t = imuTick_++;
     ImuData imu{};
-    imu.acc_x        = 2.0f * sinf(t * 0.5f);      // stroke accel ±2 m/s^2
-    imu.acc_y        = 0.3f * cosf(t * 0.5f);
-    imu.acc_z        = 9.81f;                      // gravity on Z
+    imu.acc_x_mg     = (int16_t)(204.0f * sinf(t * 0.5f));  // stroke accel ±2 m/s^2
+    imu.acc_y_mg     = (int16_t)(31.0f * cosf(t * 0.5f));
+    imu.acc_z_mg     = 1000;                                 // gravity on Z
+    imu.pitch_cdeg   = (int16_t)(300.0f * sinf(t * 0.5f));   // boat pitch ±3°
     imu.timestamp_ms = millis();
     return imu;
 }
