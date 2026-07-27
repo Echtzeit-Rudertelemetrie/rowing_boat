@@ -44,9 +44,16 @@ struct AngleDiagnostics {
     AngleCalibrationState calibrationState = AngleCalibrationState::NotStarted;
 };
 
+struct MagCalibration {
+    bool verified;
+    float matrix[3][3];
+    float offset[3];
+};
+
 class AngleReader {
 public:
     AngleReader();
+    explicit AngleReader(const MagCalibration& magCalibration);
     bool begin();
     float sampleAndCalculateAngle();
     void zeroOutputAngle();
@@ -71,10 +78,11 @@ private:
     void updateOnlineBias(float dt);
     void updateMeasurementGates(float accelNorm, float magNorm, bool magFresh);
     void updateTimingStats(float dt);
-    static void calibrateMag(const float raw[3], float out[3]);
+    void calibrateMag(const float raw[3], float out[3]) const;
     static float clampf(float value, float low, float high);
 
     ICM_20948_I2C icm_;
+    MagCalibration magCalibration_;
     OrientationEKF ekf_;
     Quat q_;
     bool initialized_ = false;

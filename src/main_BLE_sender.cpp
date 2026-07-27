@@ -65,8 +65,10 @@ static void printPack(const char* tag, const MeasurementPack& p) {
         Serial.printf("  GPS valid=%d sats=%u lat=%.6f lon=%.6f spd=%d course=%d\n",
                       g.valid, g.satellites, g.lat_e6 / 1e6, g.lon_e6 / 1e6,
                       (int)g.speed_cms, (int)g.course_cdeg);
-        Serial.printf("  IMU acc=[%.3f %.3f %.3f] t=%lu\n",
-                      imu.acc_x, imu.acc_y, imu.acc_z, (unsigned long)imu.timestamp_ms);
+        Serial.printf("  IMU acc_mg=[%d %d %d] rpy=[%.2f %.2f %.2f] t=%lu\n",
+                      imu.acc_x_mg, imu.acc_y_mg, imu.acc_z_mg,
+                      imu.roll_cdeg / 100.0, imu.pitch_cdeg / 100.0,
+                      imu.yaw_cdeg / 100.0, (unsigned long)imu.timestamp_ms);
         return;
     }
 
@@ -111,6 +113,7 @@ void setup() {
 void loop() {
     gps.update();
     receiver.update();
+    imu.update();
 
     // Forward oarlock (and any upstream IMU) data over BLE the moment a full
     // UART frame arrives.
@@ -132,7 +135,7 @@ void loop() {
         pkt.espIdAndSeqenceNum = packIdSeq(0, telemSeq++);
 
         GpsData g   = gps.data();
-        ImuData imuSample = imu.read();
+        ImuData imuSample = imu.data();
         static_assert(sizeof(g)   <= sizeof(pkt.force_values), "GpsData exceeds force region");
         static_assert(sizeof(imuSample) <= sizeof(pkt.angle_values), "ImuData exceeds angle region");
         memcpy(pkt.force_values, &g,   sizeof(g));
@@ -161,7 +164,9 @@ void loop() {
                       static_cast<unsigned long>(gps.failedChecksums()));
         if (age == UINT32_MAX) Serial.print("n/a");
         else Serial.print(age);
-        Serial.printf(" | IMU=%s | BLE conns=%u\n",
-                      imu.available() ? "ok" : "missing", ble.connectionCount());
+        const AngleDiagnostics& d = imu.diagnostics();
+        Serial.printf(" | IMU=%s yaw=%.2f mag=%s | BLE conns=%u\n",
+                      imu.available() ? "ok" : "missing", d.yawDeg,
+                      d.magValid ? "ok" : "invalid", ble.connectionCount());
     }
 }

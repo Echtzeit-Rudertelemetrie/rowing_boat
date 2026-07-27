@@ -1,56 +1,34 @@
 #include "Imu.h"
-
+#include "BoatImuConfig.h"
 #include <Wire.h>
+#include <math.h>
 
 namespace {
-constexpr float kMgToMs2 = 9.80665f / 1000.0f;
-constexpr bool kAd0High = true;
-constexpr uint8_t kInitAttempts = 5;
+int16_t roundedInt16(float value) {
+    if (!isfinite(value)) return 0;
+    value = fminf(32767.0f, fmaxf(-32768.0f, value));
+    return static_cast<int16_t>(lroundf(value));
 }
+}
+
+Imu::Imu() : angleReader_(BoatImuConfig::MAG_CALIBRATION) {}
 
 bool Imu::begin() {
     Wire.begin();
-
-    for (uint8_t attempt = 0; attempt < kInitAttempts; ++attempt) {
-        if (sensor_.begin(Wire, kAd0High) == ICM_20948_Stat_Ok) {
-            configure();
-            available_ = true;
-            latest_ = read();
-            return true;
-        }
-        delay(100);
-    }
-
-    available_ = false;
-    return false;
+    Wire.setClock(400000);
+    available_ = angleReader_.begin();
+    return available_;
 }
 
-void Imu::configure() {
-    ICM_20948_fss_t fullScale{};
-    fullScale.a = gpm4;
-    fullScale.g = dps500;
-    sensor_.setFullScale(
-        ICM_20948_Internal_Acc | ICM_20948_Internal_Gyr,
-        fullScale
-    );
-
-    ICM_20948_dlpcfg_t lowPass{};
-    lowPass.a = acc_d473bw_n499bw;
-    lowPass.g = gyr_d361bw4_n376bw5;
-    sensor_.setDLPFcfg(
-        ICM_20948_Internal_Acc | ICM_20948_Internal_Gyr,
-        lowPass
-    );
-    sensor_.enableDLPF(ICM_20948_Internal_Acc, true);
-}
-
-ImuData Imu::read() {
-    if (!available_ || !sensor_.dataReady()) return latest_;
-
-    sensor_.getAGMT();
-    latest_.acc_x = sensor_.accX() * kMgToMs2;
-    latest_.acc_y = sensor_.accY() * kMgToMs2;
-    latest_.acc_z = sensor_.accZ() * kMgToMs2;
+void Imu::update() {
+    if (!available_) return;
+    angleReader_.sampleAndCalculateAngle();
+    const AngleDiagnostics& d = angleReader_.diagnostics();
+    latest_.acc_x_mg = roundedInt16(d.accel[0]);
+    latest_.acc_y_mg = roundedInt16(d.accel[1]);
+    latest_.acc_z_mg = roundedInt16(d.accel[2]);
+    latest_.roll_cdeg = roundedInt16(d.rollDeg * 100.0f);
+    latest_.pitch_cdeg = roundedInt16(d.pitchDeg * 100.0f);
+    latest_.yaw_cdeg = roundedInt16(d.yawDeg * 100.0f);
     latest_.timestamp_ms = millis();
-    return latest_;
 }

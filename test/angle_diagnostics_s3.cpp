@@ -1,13 +1,24 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include "AngleReader.h"
+#ifdef BOAT_IMU_DIAGNOSTIC
+#include "BoatImuConfig.h"
+#endif
 
 namespace {
 constexpr uint32_t kSamplePeriodUs = 10000U;
 constexpr uint8_t kCsvDecimation = 2; // 50 Hz keeps full rows below 460800 baud
+#ifdef HUMAN_AXIS_CHECK
+constexpr uint8_t kHumanDecimation = 20; // 5 Hz at a 100 Hz filter rate
+#endif
+#ifdef BOAT_IMU_DIAGNOSTIC
+constexpr const char* kFirmwareId = "boat_imu_angle_diag_v1";
+AngleReader angleReader(BoatImuConfig::MAG_CALIBRATION);
+#else
 constexpr const char* kFirmwareId = "xiao_s3_angle_diag_v1";
-
 AngleReader angleReader;
+#endif
+
 uint32_t nextSampleUs = 0;
 uint32_t csvCounter = 0;
 
@@ -52,6 +63,13 @@ void printCsv(const AngleDiagnostics& d) {
         static_cast<unsigned long>(d.invalidDtCount),
         static_cast<unsigned long>(d.gyroClipCount));
 }
+
+#ifdef HUMAN_AXIS_CHECK
+void printHumanReadable(const AngleDiagnostics& d) {
+    Serial.printf("YAW %8.2f deg | PITCH %8.2f deg | ROLL %8.2f deg\n",
+                  d.yawDeg, d.pitchDeg, d.rollDeg);
+}
+#endif
 } // namespace
 
 void setup() {
@@ -66,7 +84,12 @@ void setup() {
         Serial.println("# FATAL: AngleReader initialization failed");
         while (true) delay(1000);
     }
+#ifdef HUMAN_AXIS_CHECK
+    Serial.println("# Flach hinlegen und die Box auf dem Tisch nach links/rechts drehen.");
+    Serial.println("# Beobachten, welche Spalte sich dabei deutlich aendert.");
+#else
     printHeader();
+#endif
     nextSampleUs = micros();
 }
 
@@ -90,8 +113,16 @@ void loop() {
         nextSampleUs = now + kSamplePeriodUs;
 
     angleReader.sampleAndCalculateAngle();
-    if (++csvCounter >= kCsvDecimation) {
+    ++csvCounter;
+#ifdef HUMAN_AXIS_CHECK
+    if (csvCounter >= kHumanDecimation) {
+        csvCounter = 0;
+        printHumanReadable(angleReader.diagnostics());
+    }
+#else
+    if (csvCounter >= kCsvDecimation) {
         csvCounter = 0;
         printCsv(angleReader.diagnostics());
     }
+#endif
 }

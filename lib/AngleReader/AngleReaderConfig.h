@@ -52,7 +52,10 @@ constexpr float MAG_NORM_MIN_UT = 10.0f;
 // can show a large raw offset. Ratio gating remains active; the wider absolute
 // ceiling merely permits collecting and validating such data.
 constexpr float MAG_NORM_MAX_UT = 200.0f;
-constexpr uint32_t MAG_MAX_STALE_US = 50000UL;
+// The AK09916 in the installed ICM-20948 assemblies produces fresh samples at
+// roughly 7-10 Hz. Keep the last vector long enough to bridge that measured
+// interval; the plausibility and norm gates still reject disturbed readings.
+constexpr uint32_t MAG_MAX_STALE_US = 250000UL;
 
 // EKF tuning: measured white sensor noise is only one component. These floors
 // also represent model error, gyro bias drift, dynamic acceleration and local

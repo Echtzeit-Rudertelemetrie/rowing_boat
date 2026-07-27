@@ -10,6 +10,18 @@ Quat identityQuaternion() {
     q.m[0][0] = 1.0f;
     return q;
 }
+
+MagCalibration oarlockMagCalibration() {
+    MagCalibration calibration{};
+    calibration.verified = AngleConfig::MAG_CALIBRATION_VERIFIED;
+    for (int row = 0; row < 3; ++row) {
+        calibration.offset[row] = AngleConfig::MAG_B[row];
+        for (int column = 0; column < 3; ++column) {
+            calibration.matrix[row][column] = AngleConfig::MAG_A[row][column];
+        }
+    }
+    return calibration;
+}
 } // namespace
 
 void AngleReader::RunningStats::clear() {
@@ -34,10 +46,15 @@ float AngleReader::RunningStats::stddev() const {
 }
 
 AngleReader::AngleReader()
+    : AngleReader(oarlockMagCalibration()) {
+}
+
+AngleReader::AngleReader(const MagCalibration& magCalibration)
     : ekf_(AngleConfig::GYRO_PROCESS_VARIANCE_FLOOR,
            AngleConfig::ACCEL_MEAS_VARIANCE_FLOOR,
            AngleConfig::MAG_MEAS_VARIANCE_FLOOR),
-      q_(identityQuaternion()) {
+      q_(identityQuaternion()),
+      magCalibration_(magCalibration) {
 }
 
 float AngleReader::clampf(float value, float low, float high) {
@@ -74,7 +91,7 @@ bool AngleReader::begin() {
     const ICM_20948_Status_e rateStatus =
         icm_.setSampleRate(ICM_20948_Internal_Acc | ICM_20948_Internal_Gyr, rate);
     Serial.printf("ANGLE_CONFIG,odr_hz=102.3,rate_status=%d,mag_cal_verified=%d\n",
-                  static_cast<int>(rateStatus), AngleConfig::MAG_CALIBRATION_VERIFIED ? 1 : 0);
+                  static_cast<int>(rateStatus), magCalibration_.verified ? 1 : 0);
 
     hwOk_ = true;
     if (!calibrateGyroOffsets()) {
@@ -168,16 +185,16 @@ void AngleReader::configureFilterNoise(const Vec3& measuredGyroVariance) {
     ekf_.setNoise(gyroQ, accelR, magR);
 }
 
-void AngleReader::calibrateMag(const float raw[3], float out[3]) {
+void AngleReader::calibrateMag(const float raw[3], float out[3]) const {
     float centered[3] = {
-        raw[0] - AngleConfig::MAG_B[0],
-        raw[1] - AngleConfig::MAG_B[1],
-        raw[2] - AngleConfig::MAG_B[2]
+        raw[0] - magCalibration_.offset[0],
+        raw[1] - magCalibration_.offset[1],
+        raw[2] - magCalibration_.offset[2]
     };
     for (int row = 0; row < 3; ++row) {
-        out[row] = AngleConfig::MAG_A[row][0] * centered[0] +
-                   AngleConfig::MAG_A[row][1] * centered[1] +
-                   AngleConfig::MAG_A[row][2] * centered[2];
+        out[row] = magCalibration_.matrix[row][0] * centered[0] +
+                   magCalibration_.matrix[row][1] * centered[1] +
+                   magCalibration_.matrix[row][2] * centered[2];
     }
 }
 
@@ -323,7 +340,7 @@ void AngleReader::updateMeasurementGates(float accelNorm, float magNorm, bool ma
     // wrong direction (confirmed on the inherited assembly). Never let it pull
     // the angle toward a false reference. The diagnostic stream remains active
     // so a proper ellipsoid calibration can be collected.
-    const bool magPlausible = AngleConfig::MAG_CALIBRATION_VERIFIED &&
+    const bool magPlausible = magCalibration_.verified &&
                               freshRecently && isfinite(magNorm) &&
                               magNorm >= AngleConfig::MAG_NORM_MIN_UT &&
                               magNorm <= AngleConfig::MAG_NORM_MAX_UT;
