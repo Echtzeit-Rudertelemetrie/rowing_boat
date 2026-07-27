@@ -154,9 +154,9 @@ bool ForceReader::begin() {
     // Sinc4-Einschwingen) genug Wandlungen pro Kanal fuer eine flotte Reaktion
     // ankommen. Gegen das dadurch etwas hoehere Rauschen mittelt AVG_SIZE.
     writeReg(REG_FILTER0, 0x060080, 3);
-    // DMS 0 -> AIN0/AIN1 (0x8001), DMS 1 -> AIN2/AIN3 (0x8043); beide Setup 0.
-    writeReg(REG_CH0, 0x8001, 2);
-    writeReg(REG_CH1, 0x8043, 2);
+    // DMS 0 -> AIN0/AIN2 (0x8002), DMS 1 -> AIN4/AIN6 (0x8086); beide Setup 0.
+    writeReg(REG_CH0, 0x8002, 2);
+    writeReg(REG_CH1, 0x8086, 2);
 
     // Jetzt erst Continuous Conversion starten (MODE=0).
     //   0x0180 = REF_EN(0x100) | POWER_MODE=full(0x80), MODE=continuous(0)
@@ -169,8 +169,8 @@ bool ForceReader::begin() {
 
 #if FORCE_READER_DEBUG
     // Register zuruecklesen: steht Continuous (CTRL=0x0180) und sind BEIDE
-    // Kanaele aktiv (CH0=0x8001, CH1=0x8043)? HINWEIS: der Readback verschluckt
-    // beim Lesen das LSB (0x8001 liest 0x8000) -> ein reiner Lese-Artefakt, die
+    // Kanaele aktiv (CH0=0x8002, CH1=0x8086)? HINWEIS: der Readback verschluckt
+    // beim Lesen das LSB (0x8003 liest 0x8002) -> ein reiner Lese-Artefakt, die
     // Writes selbst stimmen (beide Kanaele liefern ihr eigenes Differenzsignal).
     uint32_t ctrl = readReg(REG_ADC_CTRL, 2);
     uint32_t c0   = readReg(REG_CH0, 2);
