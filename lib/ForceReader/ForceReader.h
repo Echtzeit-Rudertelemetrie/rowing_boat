@@ -8,8 +8,8 @@
 // DMS-Bruecken MUESSEN aus denselben 3,3 V gespeist werden.
 //
 // ZWEI DMS auf demselben Metallstueck, jeder in einer eigenen Viertelbruecke:
-//   DMS 0 (CH0) -> differentiell AIN0/AIN2
-//   DMS 1 (CH1) -> differentiell AIN4/AIN6
+//   DMS 0 (CH0) -> differentiell AIN1/AIN3
+//   DMS 1 (CH1) -> differentiell AIN5/AIN7
 // Der AD7124 sequenziert im Continuous-Mode automatisch durch beide aktiven
 // Kanaele (0,1,0,1,...). ACHTUNG: auf diesem Chip liefert KEIN Hardware-Tag die
 // Kanalnummer (weder STATUS-Kanalfeld noch DATA_STATUS-Byte, beide konstant) ->
