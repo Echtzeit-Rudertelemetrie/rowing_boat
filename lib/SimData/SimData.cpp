@@ -5,10 +5,10 @@
 GpsData SimData::gps() {
     const uint32_t t = gpsTick_++;
     GpsData g{};
-    g.lat        = 52500000;                       // 52.500000°
-    g.lon        = 13400000 + (int32_t)(t * 9);    // ~0.6 m east per tick
-    g.speed_mps  = (int16_t)(4 + (t % 3));         // 4..6 m/s (int16: whole m/s)
-    g.course_deg = 90;                             // heading east
+    g.lat_e6      = 52500000;                       // 52.500000°
+    g.lon_e6      = 13400000 + (int32_t)(t * 9);    // ~0.6 m east per tick
+    g.speed_cms   = (uint16_t)(400 + (t % 3) * 100);// 4..6 m/s
+    g.course_cdeg = 9000;                           // heading east
     g.satellites = 9;
     g.valid      = true;
     return g;

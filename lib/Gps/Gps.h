@@ -1,6 +1,7 @@
 #pragma once
 #include <Arduino.h>
 #include <TinyGPSPlus.h>
+#include "AppTypes.h"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // GPS driver — external u-blox module on the primary I2C bus (DDC / "I2C-NMEA").
@@ -9,18 +10,6 @@
 // The module streams NMEA over I2C; we poll it in update() and feed the bytes to
 // TinyGPSPlus.  data() returns a compact, BLE-ready snapshot.
 // ─────────────────────────────────────────────────────────────────────────────
-
-// Compact GPS payload for the BLE TelemetryPacket (18 bytes, packed).
-struct __attribute__((packed)) GpsData {
-    int32_t lat;          // latitude  * 1e6  (degrees)
-    int32_t lon;          // longitude * 1e6  (degrees)
-    int16_t   speed_mps;    // ground speed [m/s]
-    int16_t   course_deg;   // course over ground [deg]
-    uint8_t satellites;   // satellites in use
-    bool    valid;        // true once a position fix is available
-};
-
-static_assert(sizeof(GpsData) == 14, "GpsData must stay 18 bytes (wire format)");
 
 class Gps {
 public:

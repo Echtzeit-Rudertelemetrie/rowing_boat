@@ -29,6 +29,20 @@ typedef struct __attribute__((packed)) {
   u_int16_t angle_values[PACKET_VALUES];
 } MeasurementPack;
 
+// GPS-Nutzdaten fuer Telemetriepakete mit ID 0. Die Skalierung vermeidet
+// Floats im Funkformat und behaelt bei Rudergeschwindigkeiten zwei
+// Nachkommastellen. Das Struct belegt 14 der 16 Bytes in force_values.
+struct __attribute__((packed)) GpsData {
+  int32_t  lat_e6;            // Breitengrad [Grad] * 1e6
+  int32_t  lon_e6;            // Laengengrad [Grad] * 1e6
+  uint16_t speed_cms;         // Geschwindigkeit ueber Grund [cm/s]
+  uint16_t course_cdeg;       // Kurs ueber Grund [Grad] * 100
+  uint8_t  satellites;
+  bool     valid;
+};
+
+static_assert(sizeof(GpsData) == 14, "GpsData must stay 14 bytes (wire format)");
+
 // ── Kodierung von espIdAndSeqenceNum ────────────────────────────────────────
 // 4 Bit ID (oben) | 28 Bit Sequenznummer — vereinheitlichtes Hub-Design
 // (Entscheidung 2026-06-24, umgesetzt 2026-07-22; vorher 3/29 Bit).

@@ -1,7 +1,7 @@
 #pragma once
 #include <Arduino.h>
 #include "AppTypes.h" // MeasurementPack, PACKET_VALUES
-#include "Gps.h"      // GpsData
+#include "Gps.h"
 #include "Imu.h"      // ImuData
 
 // ─────────────────────────────────────────────────────────────────────────────
