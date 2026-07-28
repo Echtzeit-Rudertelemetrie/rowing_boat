@@ -1,41 +1,78 @@
 #include "Gps.h"
 #include <Wire.h>
 
+bool Gps::probe() {
+    Wire.beginTransmission(I2C_ADDR);
+    return Wire.endTransmission() == 0;
+}
+
+// The FIFO level sits in the 16 bit register pair at 0xFD/0xFE, big endian.
+// Reading it costs two bytes and saves fetching a full chunk of padding when
+// the receiver has nothing queued.
+uint16_t Gps::pending() {
+    Wire.beginTransmission(I2C_ADDR);
+    Wire.write(LEN_REGISTER);
+    if (Wire.endTransmission(false) != 0) return 0xFFFF;   // no repeated start
+    if (Wire.requestFrom((int)I2C_ADDR, 2) != 2) return 0xFFFF;
+    const uint8_t hi = Wire.read();
+    const uint8_t lo = Wire.read();
+    return ((uint16_t)hi << 8) | lo;
+}
+
 void Gps::begin() {
-    // Sanity-check the bus before using it: a healthy idle I2C bus rests high.
-    // If either line reads low (stuck/shorted/unconnected module pulling low),
-    // skip the bus so update() never blocks on a dead peripheral.
-    // XIAO ESP32S3: SDA=GPIO5 (D4), SCL=GPIO6 (D5).
+    // A healthy idle I2C bus rests high. If either line is stuck low, stay off
+    // the bus so update() never blocks on a wedged peripheral. Imu::begin()
+    // calls Wire.begin() on its own, so the IMU keeps working either way.
     pinMode(SDA, INPUT_PULLUP);
     pinMode(SCL, INPUT_PULLUP);
     delayMicroseconds(20);
-    if (digitalRead(SDA) != HIGH || digitalRead(SCL) != HIGH) {
-        busOk_ = false;        // lines stuck low -> never touch the bus
-        return;
-    }
+    if (digitalRead(SDA) != HIGH || digitalRead(SCL) != HIGH) return;
 
-    Wire.begin();              // primary bus: D4=SDA / D5=SCL
+    Wire.begin();
+    Wire.setClock(400000);     // matches Imu::begin(), whichever runs first
+    wireReady_ = true;
 
-    // Probe the u-blox DDC address once. Internal pull-ups make idle lines read
-    // high even with no module attached, so a line check alone can't tell the
-    // module is missing. If it doesn't ACK, stay disabled so update() never
-    // hammers a missing device (endless "i2cRead returned Error -1" spam).
-    Wire.beginTransmission(I2C_ADDR);
-    busOk_ = (Wire.endTransmission() == 0);
+    // Internal pull-ups make idle lines read high even with no module attached,
+    // so probe the address before trusting the bus.
+    busOk_     = probe();
+    lastProbe_ = millis();
 }
 
 void Gps::update() {
-    if (!busOk_) return;       // bus was dead at begin(); never touch it
+    if (!wireReady_) return;
+    const unsigned long now = millis();
 
-    // u-blox DDC: read a chunk from the FIFO. Empty FIFO returns 0xFF padding,
-    // which we skip; everything else is NMEA and goes into TinyGPSPlus.
-    Wire.requestFrom((int)I2C_ADDR, (int)READ_CHUNK);
-    while (Wire.available()) {
-        char c = (char)Wire.read();
-        if (c != (char)0xFF) {
-            gps_.encode(c);
-        }
+    // The receiver may power up later than the hub, or be unplugged at runtime.
+    // Retry occasionally instead of staying dead until the next reset.
+    if (!busOk_) {
+        if (now - lastProbe_ < PROBE_RETRY_MS) return;
+        lastProbe_ = now;
+        busOk_ = probe();
+        if (!busOk_) return;
     }
+
+    if (now - lastPoll_ < POLL_INTERVAL_MS) return;
+    lastPoll_ = now;
+
+    uint16_t waiting = pending();
+    if (waiting == 0xFFFF) { busOk_ = false; return; }   // stopped answering
+    if (waiting == 0) return;
+    if (waiting > MAX_PER_POLL) waiting = MAX_PER_POLL;  // drain the rest next poll
+
+    while (waiting > 0) {
+        const uint8_t chunk = (waiting < READ_CHUNK) ? (uint8_t)waiting : READ_CHUNK;
+        const uint8_t got   = Wire.requestFrom((int)I2C_ADDR, (int)chunk);
+        if (got == 0) { busOk_ = false; return; }
+        while (Wire.available()) {
+            const char c = (char)Wire.read();
+            if (c != (char)0xFF) gps_.encode(c);   // 0xFF is FIFO padding
+        }
+        waiting -= got;
+    }
+}
+
+uint32_t Gps::locationAgeMs() const {
+    return gps_.location.isValid() ? gps_.location.age() : UINT32_MAX;
 }
 
 GpsData Gps::data() {

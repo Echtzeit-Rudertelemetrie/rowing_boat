@@ -3,12 +3,14 @@
  *
  * Role in the boat:
  *   Receives oarlock data over UART (Serial1: D7=GPIO44 RX, D6=GPIO43 TX) from
- *   the ESP-NOW aggregator, reads the NEO-M8T over Serial2
- *   (D10=GPIO9 RX, D9=GPIO8 TX) and broadcasts everything via BLE to up to
- *   BLE_MAX_CONN phones.
+ *   the ESP-NOW aggregator, reads the NEO-M8T over I2C (DDC 0x42 on D4/D5) and
+ *   broadcasts everything via BLE to up to BLE_MAX_CONN phones.
  *
- *   A central ICM-20948 is connected to the hub over I2C. Its acceleration is
- *   packed into the telemetry packet's angle region.
+ *   A central ICM-20948 shares that I2C bus. Its acceleration is packed into
+ *   the telemetry packet's angle region.
+ *
+ *   The receiver also offers UART on D10/D9 and lib/UartGps drives it, but the
+ *   TX line of the soldered harness is open, so the hub uses the DDC path.
  *
  * Component code lives in lib/ (one folder per component, team convention):
  *   UartReceiver (lib/UartReceiver, [0xAA][0xBB] + MeasurementPack 36 B),
@@ -21,7 +23,7 @@
 
 #include <Arduino.h>
 #include "UartReceiver.h"
-#include "UartGps.h"
+#include "Gps.h"
 #include "Imu.h"
 #include "BleSender.h"
 
@@ -30,7 +32,7 @@
 #endif
 
 static UartReceiver receiver;
-static UartGps      gps;
+static Gps          gps;
 static Imu          imu;
 static BleSender    ble;
 
@@ -102,7 +104,9 @@ void setup() {
     }
 
     receiver.begin();       // Serial1 UART from the ESP-NOW aggregator
-    gps.begin();            // NEO-M8T: Serial2, D10 RX / D9 TX
+    gps.begin();            // NEO-M8T: I2C/DDC 0x42 on D4/D5
+    Serial.println(gps.available() ? "GPS up - u-blox answering on DDC 0x42"
+                                   : "!!! GPS not answering on 0x42 - retrying in background");
 
     if (imu.begin()) Serial.println("IMU up - ICM-20948 streaming real acceleration");
     else             Serial.println("!!! IMU begin() FAILED - check I2C wiring/address");
@@ -156,7 +160,7 @@ void loop() {
         GpsData g = gps.data();
         const uint32_t age = gps.locationAgeMs();
         Serial.printf("GPS fix=%d sats=%u lat=%.6f lon=%.6f spd=%.2f m/s"
-                      " | uart_chars=%lu nmea_ok=%lu nmea_bad=%lu age_ms=",
+                      " | ddc_chars=%lu nmea_ok=%lu nmea_bad=%lu age_ms=",
                       g.valid, g.satellites, g.lat_e6 / 1e6, g.lon_e6 / 1e6,
                       g.speed_cms / 100.0,
                       static_cast<unsigned long>(gps.charsProcessed()),
