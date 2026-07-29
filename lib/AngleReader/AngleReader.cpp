@@ -221,11 +221,11 @@ bool AngleReader::readSample(Vec3& gyroV, Vec3& accelV, Vec3& magV) {
     const float gy = latestRawGyroRadS_[1] - gyroBiasRadS_[1];
     const float gz = latestRawGyroRadS_[2] - gyroBiasRadS_[2];
 
-    // Physical mounting -> EKF frame. Sensor Y is the presumed oarlock axis and
-    // becomes EKF X; output remains roll. This is a proper cyclic rotation.
-    gyroV = vec3(gy, gz, gx);
-    accelV = vec3(accelNative[1], accelNative[2], accelNative[0]);
-    magV = vec3(magCal[1], magCal[2], magCal[0]);
+    // Physical mounting -> EKF frame. Sensor X is the oarlock axis and is already
+    // EKF X, so the frames coincide; output remains roll.
+    gyroV = vec3(gx, gy, gz);
+    accelV = vec3(accelNative[0], accelNative[1], accelNative[2]);
+    magV = vec3(magCal[0], magCal[1], magCal[2]);
 
     diagnostics_.gyroCorrectedDps[0] = gyroV.m[0][0] * kRadToDeg;
     diagnostics_.gyroCorrectedDps[1] = gyroV.m[1][0] * kRadToDeg;
@@ -422,7 +422,7 @@ float AngleReader::sampleAndCalculateAngle() {
     diagnostics_.pitchDeg = e.pitch;
     diagnostics_.rollDeg = e.roll;
 
-    // Preserved physical choice: sensor Y -> EKF X -> roll. outputZeroDeg_
+    // Preserved physical choice: sensor X -> EKF X -> roll. outputZeroDeg_
     // separates mechanical zeroing from the internal orientation state.
     float output = e.roll - outputZeroDeg_;
     while (output > 180.0f) output -= 360.0f;
