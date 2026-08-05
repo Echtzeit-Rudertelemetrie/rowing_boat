@@ -90,7 +90,16 @@ bool AngleReader::begin() {
     rate.g = AngleConfig::GYRO_RATE_DIVIDER;
     const ICM_20948_Status_e rateStatus =
         icm_.setSampleRate(ICM_20948_Internal_Acc | ICM_20948_Internal_Gyr, rate);
-    Serial.printf("ANGLE_CONFIG,odr_hz=102.3,rate_status=%d,mag_cal_verified=%d\n",
+    // Bis 2026-07-29 stand hier ein fest einkompiliertes "odr_hz=102.3". Der
+    // Wert blieb damit auch dann stehen, wenn die Teiler laengst andere waren --
+    // ausgerechnet in der Zeile, mit der man die Rate kontrolliert. Jetzt aus
+    // den Teilern berechnet: Gyro 1.1 kHz/(1+div), Accel 1.125 kHz/(1+div).
+    const float gyroOdrHz = 1100.0f / (1.0f + AngleConfig::GYRO_RATE_DIVIDER);
+    const float accelOdrHz = 1125.0f / (1.0f + AngleConfig::ACCEL_RATE_DIVIDER);
+    Serial.printf("ANGLE_CONFIG,gyro_odr_hz=%.1f,accel_odr_hz=%.1f,"
+                  "filter_hz=%.1f,rate_status=%d,mag_cal_verified=%d\n",
+                  gyroOdrHz, accelOdrHz,
+                  1.0e6f / static_cast<float>(AngleConfig::SAMPLE_INTERVAL_US),
                   static_cast<int>(rateStatus), magCalibration_.verified ? 1 : 0);
 
     hwOk_ = true;
@@ -424,7 +433,14 @@ float AngleReader::sampleAndCalculateAngle() {
 
     // Preserved physical choice: sensor X -> EKF X -> roll. outputZeroDeg_
     // separates mechanical zeroing from the internal orientation state.
-    float output = e.roll - outputZeroDeg_;
+    //
+    // The result is negated because the mounting runs opposite to the expected
+    // rowing direction. Negate the OUTPUT, never the frame: flipping a single
+    // axis has determinant -1 and is therefore a reflection, not a rotation.
+    // Accel and mag are polar vectors but the gyro is a pseudovector, so they
+    // transform differently under a reflection — the rotation sense would
+    // invert while gravity and north still looked correct.
+    float output = -(e.roll - outputZeroDeg_);
     while (output > 180.0f) output -= 360.0f;
     while (output <= -180.0f) output += 360.0f;
     lastAngleDeg_ = output;

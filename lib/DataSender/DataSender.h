@@ -13,7 +13,11 @@
 // which made its time axis jump backwards. Send each 100-Hz sample packet once;
 // real loss is detected by the sequence number.
 constexpr std::uint8_t PACKET_RETRIES = 1;
-constexpr std::uint8_t ESP_ID = 1;
+
+// Die ESP-ID ist keine Konstante mehr: sie kommt aus der MAC des Boards, siehe
+// OarlockIdentity.h. Ein fest einkompiliertes ESP_ID = 1 bedeutete pro Dolle
+// einen eigenen Build, und zwei Boards mit demselben Build belegten dieselbe
+// ID -- das hat schon einen Systemtest gekostet.
 
 // ── Quantisierungs-Spannen ───────────────────────────────────────────────────
 // Diese Grenzen sind NICHT nur ein Clamp, sondern der MASSSTAB: quantize()

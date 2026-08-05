@@ -23,4 +23,7 @@ private:
   TimerManager timer_;
   uint32_t maxQueueDepth_ = 0;
   uint32_t lastTimingReportMs_ = 0;
+  // Abtastung 200 Hz, Funk 100 Hz: zaehlt die SendData-Events und laesst jedes
+  // zweite durch. Siehe handleEvent.
+  uint8_t sendDivider_ = 0;
 };

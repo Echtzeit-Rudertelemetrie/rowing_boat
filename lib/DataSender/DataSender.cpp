@@ -1,5 +1,7 @@
 #include "DataSender.h"
 
+#include "OarlockIdentity.h"
+
 // Debug-Vollausgabe pro Paket (~900 Zeichen) laeuft im selben Task wie der
 // 100-Hz-EKF: liest kein Host den USB-CDC-Puffer, blockiert Serial die
 // Sample-Schleife und die Event-Queue (~210 ms Kapazitaet) laeuft ueber.
@@ -90,6 +92,19 @@ void DataSender::espnow_init_sender()
     }
     esp_now_register_send_cb(onDataSent); // Nach jedem Sendeversuch ruft das System automatisch onDataSent auf (macht nichts -> weglassen?)
 
+    // Frueh und einmalig ausgeben: bei einem Problem im Boot ist die eigene
+    // Identitaet die erste Frage, und ein unbekanntes Board soll sofort
+    // auffallen und nicht erst, wenn keine Pakete ankommen.
+    const std::uint64_t mac = oarlockMac();
+    Serial.printf("OARLOCK,id=%u,name=%s,mac=%02x:%02x:%02x:%02x:%02x:%02x\n",
+                  static_cast<unsigned>(oarlockId()), oarlockName(),
+                  static_cast<unsigned>((mac >> 40) & 0xFF),
+                  static_cast<unsigned>((mac >> 32) & 0xFF),
+                  static_cast<unsigned>((mac >> 24) & 0xFF),
+                  static_cast<unsigned>((mac >> 16) & 0xFF),
+                  static_cast<unsigned>((mac >> 8) & 0xFF),
+                  static_cast<unsigned>(mac & 0xFF));
+
     esp_now_peer_info_t peer = {}; // Erstellt eine Peer-Konfigurationsstruktur.
     // Ein „Peer“ ist bei ESP-NOW der Gegenknoten, den man ansprechen will.
     memcpy(peer.peer_addr, BROADCAST_MAC, 6);
@@ -171,18 +186,54 @@ void DataSender::sendData()
 
     ++packetSeq;
 
-    if ((ESP_ID & ~IDSEQ_ID_MASK) != 0)
+    const std::uint8_t espId = oarlockId();
+
+    // Unbekannte MAC: lieber gar nicht senden als still die ID einer anderen
+    // Dolle belegen. Zwei Sender auf derselben ID erzeugen wechselnde
+    // Sequenznummern und Nullwinkel in der App, und das sieht nach einem
+    // Rechenfehler aus statt nach einem Konfigurationsfehler.
+    if (espId == OARLOCK_ID_UNKNOWN)
     {
-        // Fehlerbehandlung: ESP_ID ist außerhalb des 4-Bit-Bereichs
+        static bool warned = false;
+        if (!warned)
+        {
+            warned = true;
+            const std::uint64_t mac = oarlockMac();
+            Serial.printf(
+                "FEHLER: MAC %02x:%02x:%02x:%02x:%02x:%02x steht nicht in "
+                "OARLOCK_UNITS (lib/DataSender/OarlockIdentity.h). "
+                "Es wird nichts gesendet.\n",
+                static_cast<unsigned>((mac >> 40) & 0xFF),
+                static_cast<unsigned>((mac >> 32) & 0xFF),
+                static_cast<unsigned>((mac >> 24) & 0xFF),
+                static_cast<unsigned>((mac >> 16) & 0xFF),
+                static_cast<unsigned>((mac >> 8) & 0xFF),
+                static_cast<unsigned>(mac & 0xFF));
+        }
+        return;
+    }
+
+    // Beide Bereichspruefungen waren frueher leere Bloecke: sie erkannten den
+    // Fehler und liessen das Paket trotzdem mit abgeschnittener ID bzw.
+    // Sequenz raus. Solange ESP_ID eine Konstante war, fiel das nicht auf.
+    if ((espId & ~IDSEQ_ID_MASK) != 0)
+    {
+        Serial.printf("FEHLER: ESP-ID %u passt nicht in 4 Bit, Paket verworfen\n",
+                      static_cast<unsigned>(espId));
+        return;
     }
 
     if ((packetSeq & ~IDSEQ_SEQ_MASK) != 0)
     {
-        // Fehlerbehandlung: Sequenznummer ist außerhalb des 28-Bit-Bereichs
+        // 28 Bit reichen bei ~13 Paketen/s fuer rund 23 Jahre Dauerbetrieb.
+        // Der Ueberlauf ist damit kein Betriebsfall, aber ein stiller Sprung
+        // der Sequenz wuerde die Dedup-Logik im Empfaenger verwirren.
+        Serial.println("WARNUNG: Sequenznummer ueberlaeuft 28 Bit, Neustart bei 0");
+        packetSeq &= IDSEQ_SEQ_MASK;
     }
 
     MeasurementPack pkt{};
-    pkt.espIdAndSeqenceNum = packIdSeq(ESP_ID, packetSeq);
+    pkt.espIdAndSeqenceNum = packIdSeq(espId, packetSeq);
 
     memcpy(pkt.force_values, forceBuffer, sizeof(forceBuffer));
     memcpy(pkt.angle_values, angleBuffer, sizeof(angleBuffer));

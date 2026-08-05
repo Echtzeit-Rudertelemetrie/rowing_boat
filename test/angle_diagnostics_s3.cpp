@@ -6,10 +6,14 @@
 #endif
 
 namespace {
-constexpr uint32_t kSamplePeriodUs = 10000U;
-constexpr uint8_t kCsvDecimation = 2; // 50 Hz keeps full rows below 460800 baud
+// Aus der Konfiguration ableiten statt eigener Konstante: sonst laeuft die
+// Diagnose mit einer anderen Rate als die Produktion und misst eine andere
+// Welt (bis 2026-07-29 stand hier fest 10000 us, waehrend die Produktion
+// bereits ueber SAMPLE_INTERVAL_US gesteuert wurde).
+constexpr uint32_t kSamplePeriodUs = AngleConfig::SAMPLE_INTERVAL_US;
+constexpr uint8_t kCsvDecimation = 4; // 50 Hz keeps full rows below 460800 baud
 #ifdef HUMAN_AXIS_CHECK
-constexpr uint8_t kHumanDecimation = 20; // 5 Hz at a 100 Hz filter rate
+constexpr uint8_t kHumanDecimation = 40; // 5 Hz at a 200 Hz filter rate
 #endif
 #ifdef BOAT_IMU_DIAGNOSTIC
 constexpr const char* kFirmwareId = "boat_imu_angle_diag_v1";

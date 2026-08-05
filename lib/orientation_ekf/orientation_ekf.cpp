@@ -108,7 +108,7 @@ OrientationEKF::OrientationEKF(float gyroNoise, float accelNoise, float magNoise
       magNoise_(vec3(magNoise, magNoise, magNoise)) {
     P_ = eye<4>();
     // sinnvolle Default-Referenzen aus ekf_update.m (besser: setReferences() aufrufen)
-    accelRef_ = vec3(-1.0f, -1.0f, 1.0f);
+    accelRef_ = vec3(1.0f, 1.0f, 1.0f);
     float n = norm3(accelRef_);
     accelRef_ = accelRef_ * (1.0f / n);     // im Gegensatz zu MATLAB hier normiert!
     magRef_   = vec3(0.44f, 0.03f, 0.90f);

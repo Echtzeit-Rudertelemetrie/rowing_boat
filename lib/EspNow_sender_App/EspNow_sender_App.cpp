@@ -28,15 +28,22 @@ void EspNow_sender_App::begin() {
     }
   }
 
-  // 100 Hz statt 200 Hz: Der AK09916-Magnetometer im ICM-20948 liefert maximal
-  // 100 Hz, schnelleres Ticken erzeugt also keine neuen Daten. Ausserdem ist der
-  // EKF-Schritt (u.a. 6x6-Matrixinversion in float) zu teuer, um ihn doppelt so
-  // oft anzustossen wie Messwerte entstehen. Vorher hat AngleReader intern auf
-  // 100 Hz begrenzt und bei 200-Hz-Ticks jeden zweiten Aufruf verworfen — jetzt
-  // gibt der Timer die Abtastrate direkt vor: 1 Tick = 1 EKF-Schritt
-  // (siehe AngleReader::sampleAndCalculateAngle). Das 8-Werte-Paket enthaelt
-  // 8 echte Samples, deckt 80 ms ab und wird etwa 12,5-mal pro Sekunde gesendet.
-  if (!timer_.begin(100)) {
+  // 200 Hz Abtastung (2026-07-29, vorher 100 Hz). 1 Tick = 1 EKF-Schritt, siehe
+  // AngleReader::sampleAndCalculateAngle. Gyro und Accel liefern bei einem ODR
+  // von 225 Hz tatsaechlich neue Werte, und der Schlag erreicht 276 deg/s.
+  //
+  // Das Magnetometer zieht NICHT mit: der AK09916 ist in diesem Aufbau mit
+  // real 7-10 Hz frisch. Das ist unkritisch, weil das Staleness-Gate ihn
+  // ohnehin nur bewertet, wenn ein frischer Wert vorliegt.
+  //
+  // Gesendet wird weiterhin mit 100 Hz -- handleEvent dezimiert SendData um
+  // zwei. Das 8-Werte-Paket deckt damit unveraendert 80 ms ab und geht etwa
+  // 12,5-mal pro Sekunde raus.
+  //
+  // Im Auge behalten: Der EKF-Schritt enthaelt eine 6x6-Inversion in float und
+  // laeuft jetzt doppelt so oft. ANGLEREADER_PROFILING gibt queue_max aus --
+  // laeuft die Event-Queue voll, ist die CPU das Limit und nicht der Sensor.
+  if (!timer_.begin(200)) {
     Serial.println("Timer konnte nicht gestartet werden.");
     while (true) {
       delay(1000);
@@ -93,10 +100,16 @@ void EspNow_sender_App::handleEvent(EventType event) {
       break;
 
     case EventType::SendData: {
+      // Der EKF laeuft mit 200 Hz, ins Paket darf aber nur jedes zweite Sample:
+      // die App rechnet mit fest verdrahteten 10 ms je Sample
+      // (BluetoothPacket.sampleIntervalMs in bluetooth_packet_decode_util.dart).
+      // Ohne diese Dezimierung liefe ihre Zeitachse doppelt so schnell, und die
+      // Paketrate wuerde sich ebenfalls verdoppeln.
+      sendDivider_ ^= 1;
+      if (sendDivider_ != 0) {
+        break;
+      }
       sender_.sendData();
-      //unsigned long ims = millis();
-
-      //Serial.printf("Uptime: %02lu\n", ims);
       break;
     }
   }
