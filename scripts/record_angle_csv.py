@@ -27,7 +27,7 @@ CSV_COLUMNS = [
     "yaw_deg", "pitch_deg", "roll_deg", "output_angle_deg",
     "accel_valid", "mag_valid", "mag_fresh", "stationary",
     "queue_depth", "dropped_events", "calibration_state", "temperature_c",
-    "invalid_dt_count", "gyro_clip_count",
+    "invalid_dt_count", "gyro_clip_count", "force_n",
 ]
 
 

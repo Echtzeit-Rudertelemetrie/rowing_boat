@@ -1,8 +1,13 @@
 #include <Arduino.h>
 #include <Wire.h>
 #include "AngleReader.h"
-#ifdef BOAT_IMU_DIAGNOSTIC
-#include "BoatImuConfig.h"
+#ifndef BOAT_IMU_DIAGNOSTIC
+// Nur die Dolle traegt den AD7124. Die Kraft ist hier kein Selbstzweck: sie
+// unterscheidet Durchzug von Rueckholen, und erst damit laesst sich aus dem
+// Vorzeichen der Winkelaenderung die Ruderseite bestimmen. Backbord und
+// Steuerbord schwenken spiegelverkehrt, auch wenn die Elektronik auf beiden
+// Seiten gleich zum Rumpf sitzt.
+#include "ForceReader.h"
 #endif
 
 namespace {
@@ -17,10 +22,15 @@ constexpr uint8_t kHumanDecimation = 40; // 5 Hz at a 200 Hz filter rate
 #endif
 #ifdef BOAT_IMU_DIAGNOSTIC
 constexpr const char* kFirmwareId = "boat_imu_angle_diag_v1";
-AngleReader angleReader(BoatImuConfig::MAG_CALIBRATION);
-#else
-constexpr const char* kFirmwareId = "xiao_s3_angle_diag_v1";
+// Kein eigenes Kalibrierprofil mehr: der Default-Konstruktor holt die Werte
+// ueber die Board-MAC aus lib/UnitIdentity, auf dem Hub wie auf der Dolle.
 AngleReader angleReader;
+#else
+constexpr const char* kFirmwareId = "xiao_s3_angle_diag_v2";
+AngleReader angleReader;
+ForceReader forceReader;
+bool forceOk = false;
+float latestForceN = 0.0f;
 #endif
 
 uint32_t nextSampleUs = 0;
@@ -39,7 +49,10 @@ void printHeader() {
         "yaw_deg,pitch_deg,roll_deg,output_angle_deg,"
         "accel_valid,mag_valid,mag_fresh,stationary,"
         "queue_depth,dropped_events,calibration_state,temperature_c,"
-        "invalid_dt_count,gyro_clip_count");
+        // force_n haengt hinten an, damit bestehende Auswertungen, die ueber
+        // feste Spaltenindizes gehen, unveraendert weiterlaufen. Auf der
+        // Boot-IMU bleibt die Spalte 0 -- dort sitzt kein AD7124.
+        "invalid_dt_count,gyro_clip_count,force_n");
 }
 
 void printCsv(const AngleDiagnostics& d) {
@@ -50,7 +63,7 @@ void printCsv(const AngleDiagnostics& d) {
         "%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,"
         "%.7f,%.7f,%.7f,%.7f,"
         "%.4f,%.4f,%.4f,%.4f,"
-        "%d,%d,%d,%d,0,0,%u,%.3f,%lu,%lu\n",
+        "%d,%d,%d,%d,0,0,%u,%.3f,%lu,%lu,%.4f\n",
         static_cast<unsigned long>(d.timestampUs),
         static_cast<unsigned long>(d.sequence), d.dt,
         d.gyroRawDps[0], d.gyroRawDps[1], d.gyroRawDps[2],
@@ -65,7 +78,12 @@ void printCsv(const AngleDiagnostics& d) {
         d.stationary ? 1 : 0,
         static_cast<unsigned>(d.calibrationState), d.temperatureC,
         static_cast<unsigned long>(d.invalidDtCount),
-        static_cast<unsigned long>(d.gyroClipCount));
+        static_cast<unsigned long>(d.gyroClipCount),
+#ifdef BOAT_IMU_DIAGNOSTIC
+        0.0f);
+#else
+        latestForceN);
+#endif
 }
 
 #ifdef HUMAN_AXIS_CHECK
@@ -88,6 +106,12 @@ void setup() {
         Serial.println("# FATAL: AngleReader initialization failed");
         while (true) delay(1000);
     }
+#ifndef BOAT_IMU_DIAGNOSTIC
+    // Fehlende Kraft ist hier kein Abbruchgrund: der Winkelpfad bleibt auch
+    // ohne AD7124 vollstaendig messbar, force_n meldet dann konstant 0.
+    forceOk = forceReader.begin();
+    Serial.printf("# force_reader=%s\n", forceOk ? "ok" : "missing");
+#endif
 #ifdef HUMAN_AXIS_CHECK
     Serial.println("# Flach hinlegen und die Box auf dem Tisch nach links/rechts drehen.");
     Serial.println("# Beobachten, welche Spalte sich dabei deutlich aendert.");
@@ -117,6 +141,12 @@ void loop() {
         nextSampleUs = now + kSamplePeriodUs;
 
     angleReader.sampleAndCalculateAngle();
+#ifndef BOAT_IMU_DIAGNOSTIC
+    // Im selben Tick wie der Winkel abtasten, damit Kraft und Winkel in einer
+    // CSV-Zeile denselben Zeitpunkt beschreiben. Genau darauf beruht die
+    // Seitenerkennung: das Vorzeichen der Winkelaenderung waehrend hoher Kraft.
+    if (forceOk) latestForceN = forceReader.sampleForce();
+#endif
     ++csvCounter;
 #ifdef HUMAN_AXIS_CHECK
     if (csvCounter >= kHumanDecimation) {

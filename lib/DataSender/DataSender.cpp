@@ -1,6 +1,6 @@
 #include "DataSender.h"
 
-#include "OarlockIdentity.h"
+#include "UnitIdentity.h"
 
 // Debug-Vollausgabe pro Paket (~900 Zeichen) laeuft im selben Task wie der
 // 100-Hz-EKF: liest kein Host den USB-CDC-Puffer, blockiert Serial die
@@ -95,9 +95,9 @@ void DataSender::espnow_init_sender()
     // Frueh und einmalig ausgeben: bei einem Problem im Boot ist die eigene
     // Identitaet die erste Frage, und ein unbekanntes Board soll sofort
     // auffallen und nicht erst, wenn keine Pakete ankommen.
-    const std::uint64_t mac = oarlockMac();
+    const std::uint64_t mac = unitMac();
     Serial.printf("OARLOCK,id=%u,name=%s,mac=%02x:%02x:%02x:%02x:%02x:%02x\n",
-                  static_cast<unsigned>(oarlockId()), oarlockName(),
+                  static_cast<unsigned>(unitOarlockId()), unitName(),
                   static_cast<unsigned>((mac >> 40) & 0xFF),
                   static_cast<unsigned>((mac >> 32) & 0xFF),
                   static_cast<unsigned>((mac >> 24) & 0xFF),
@@ -186,7 +186,7 @@ void DataSender::sendData()
 
     ++packetSeq;
 
-    const std::uint8_t espId = oarlockId();
+    const std::uint8_t espId = unitOarlockId();
 
     // Unbekannte MAC: lieber gar nicht senden als still die ID einer anderen
     // Dolle belegen. Zwei Sender auf derselben ID erzeugen wechselnde
@@ -198,10 +198,10 @@ void DataSender::sendData()
         if (!warned)
         {
             warned = true;
-            const std::uint64_t mac = oarlockMac();
+            const std::uint64_t mac = unitMac();
             Serial.printf(
                 "FEHLER: MAC %02x:%02x:%02x:%02x:%02x:%02x steht nicht in "
-                "OARLOCK_UNITS (lib/DataSender/OarlockIdentity.h). "
+                "der Einheitentabelle (lib/UnitIdentity/UnitIdentity.cpp). "
                 "Es wird nichts gesendet.\n",
                 static_cast<unsigned>((mac >> 40) & 0xFF),
                 static_cast<unsigned>((mac >> 32) & 0xFF),

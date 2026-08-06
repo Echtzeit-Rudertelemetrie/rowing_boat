@@ -181,13 +181,19 @@ Fit-Residuum über 8 % ab. Angestrebt werden unter 3 %. Die Datei
 `calibration/mag_01/mag_calibration_constants.txt` enthält:
 
 ```cpp
-constexpr bool MAG_CALIBRATION_VERIFIED = true;
-constexpr float MAG_A[3][3] = { ... };
-constexpr float MAG_B[3] = { ... };
+{
+    true,
+    {
+        { ... }, { ... }, { ... },
+    },
+    { ... },
+},
 ```
 
-Diese drei Definitionen ersetzen die gleichnamigen Definitionen in
-`lib/AngleReader/AngleReaderConfig.h`. Danach beide Environments neu bauen.
+Dieser Block ersetzt den `mag`-Block der betroffenen Einheit in der
+Einheitentabelle in `lib/UnitIdentity/UnitIdentity.cpp`. Die Einheit wird dort
+über ihre Board-MAC gefunden, es ist also genau ein Eintrag zu ändern und keine
+andere Datei anzufassen. Danach beide Environments neu bauen.
 Die Werte werden derzeit im Firmware-Image gespeichert, nicht in NVS. Dies ist
 absichtlich nachvollziehbar und versionskontrolliert. NVS lohnt sich erst, wenn
 eine Bedienoberfläche Kalibrierungen eindeutig einem Gerät zuordnen kann.

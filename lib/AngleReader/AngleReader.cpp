@@ -10,18 +10,6 @@ Quat identityQuaternion() {
     q.m[0][0] = 1.0f;
     return q;
 }
-
-MagCalibration oarlockMagCalibration() {
-    MagCalibration calibration{};
-    calibration.verified = AngleConfig::MAG_CALIBRATION_VERIFIED;
-    for (int row = 0; row < 3; ++row) {
-        calibration.offset[row] = AngleConfig::MAG_B[row];
-        for (int column = 0; column < 3; ++column) {
-            calibration.matrix[row][column] = AngleConfig::MAG_A[row][column];
-        }
-    }
-    return calibration;
-}
 } // namespace
 
 void AngleReader::RunningStats::clear() {
@@ -45,8 +33,11 @@ float AngleReader::RunningStats::stddev() const {
     return sqrtf(variance());
 }
 
+// Die Kalibrierung kommt aus der MAC-Tabelle in lib/UnitIdentity. Damit tut
+// derselbe Build auf jeder Dolle und auf dem Hub das Richtige, und eine
+// unbekannte Einheit laeuft ohne Magnetometer statt mit fremden Werten.
 AngleReader::AngleReader()
-    : AngleReader(oarlockMagCalibration()) {
+    : AngleReader(unitMagCalibration()) {
 }
 
 AngleReader::AngleReader(const MagCalibration& magCalibration)

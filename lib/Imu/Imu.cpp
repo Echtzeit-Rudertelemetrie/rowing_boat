@@ -1,5 +1,4 @@
 #include "Imu.h"
-#include "BoatImuConfig.h"
 #include <Wire.h>
 #include <math.h>
 
@@ -11,7 +10,10 @@ int16_t roundedInt16(float value) {
 }
 }
 
-Imu::Imu() : angleReader_(BoatImuConfig::MAG_CALIBRATION) {}
+// Kein Hub-eigenes Kalibrierprofil mehr: der Default-Konstruktor von
+// AngleReader schlaegt die Werte ueber die Board-MAC in lib/UnitIdentity nach.
+// Der Hub steht dort als eigene Einheit, deshalb genuegt hier der Default.
+Imu::Imu() = default;
 
 bool Imu::begin() {
     Wire.begin();

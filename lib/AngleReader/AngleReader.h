@@ -4,6 +4,10 @@
 #include <ICM_20948.h>
 #include "orientation_ekf.h"
 #include "AngleReaderConfig.h"
+// Liefert struct MagCalibration und die Kalibrierung dieser Einheit. Die Werte
+// sind einbauspezifisch und kommen deshalb aus der MAC-Tabelle statt aus einer
+// Konstanten in diesem Verzeichnis.
+#include "UnitIdentity.h"
 
 enum class AngleCalibrationState : uint8_t {
     NotStarted = 0,
@@ -44,14 +48,10 @@ struct AngleDiagnostics {
     AngleCalibrationState calibrationState = AngleCalibrationState::NotStarted;
 };
 
-struct MagCalibration {
-    bool verified;
-    float matrix[3][3];
-    float offset[3];
-};
-
 class AngleReader {
 public:
+    // Default: Kalibrierung dieser Einheit aus der MAC-Tabelle. Der explizite
+    // Konstruktor bleibt fuer Tests und Sonderfaelle bestehen.
     AngleReader();
     explicit AngleReader(const MagCalibration& magCalibration);
     bool begin();

@@ -59,13 +59,14 @@ drehen, kippen und taumeln. Jede Raumrichtung soll erreicht werden.
 ```bash
 MPLCONFIGDIR=/tmp/matplotlib-angle \
 python3 scripts/calibrate_magnetometer.py logs/boat_mag_full_3d.csv \
-  --target boat \
   --output-dir calibration/boat_mag_01
 ```
 
-Der Befehl prüft 3D-Abdeckung und Fit-Residuum. Die erzeugte Definition aus
-`calibration/boat_mag_01/mag_calibration_constants.txt` ersetzt die Definition
-`MAG_CALIBRATION` in `lib/Imu/BoatImuConfig.h`.
+Der Befehl prüft 3D-Abdeckung und Fit-Residuum. Der erzeugte Block aus
+`calibration/boat_mag_01/mag_calibration_constants.txt` ersetzt den `mag`-Block
+des Boot-Hubs in der Einheitentabelle in `lib/UnitIdentity/UnitIdentity.cpp`.
+Der Hub wird dort über seine Board-MAC gefunden; ein eigenes Konfigurationsfile
+(früher `lib/Imu/BoatImuConfig.h`) gibt es nicht mehr.
 
 ## 6. Produktions-Firmware und App
 
