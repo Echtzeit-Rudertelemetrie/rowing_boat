@@ -18,6 +18,7 @@ float Sensor::ReadForce() {
 }
 
 float Sensor::ReadAngle() {
-  //const float angle = angleReader.sampleAndCalculateAngle();
-  return (1.03234f * 3.3f) / 4095.0f;
+  const float angle = angleReader.sampleAndCalculateAngle();
+  //return (1.03234f * 3.3f) / 4095.0f;
+  return angle;
 }

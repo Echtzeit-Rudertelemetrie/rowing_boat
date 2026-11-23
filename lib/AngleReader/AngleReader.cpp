@@ -114,7 +114,8 @@ float AngleReader::sampleAndCalculateAngle() {
         return 0.0f;
     }
 
-    float dt = (nowUs - lastUpdateUs) / 1000000.0f;
+    // float dt = (nowUs - lastUpdateUs) / 1000000.0f;
+    float dt = static_cast<float>(static_cast<uint32_t>(nowUs - lastUpdateUs)) * (1.0f / 1000000.0f);
     lastUpdateUs = nowUs;
 
     // Sensoren lesen
