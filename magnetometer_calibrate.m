@@ -1,10 +1,12 @@
 close all; clear
 
 s = serialport; % anpassen
+% s = serialport("/dev/cu.usbmodem1301", 115200);
+
 configureTerminator(s, "LF");
 flush(s);
 
-num_points = 1000;          % ein großer Datensatz statt 5 kleiner
+num_points = 6000;          % ein großer Datensatz statt 5 kleiner
 mag_raw = zeros(num_points, 3);
 mag = nan(1, 3);
 got = false(1, 3);          % Komponenten-Tracking statt Reihenfolgeannahme
